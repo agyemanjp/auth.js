@@ -199,10 +199,11 @@ function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
 			res.status(httpStatusCodes.FORBIDDEN).send()
 	})
 	app.post("/:app/register", async (req, res) => {
-		// logNotice(`Handling API repo Find with body ${stringify()}`)
+		logNotice(`Starting user registration for ${stringify(req.body)} in auth service`)
 		try {
 			await dbRepository.extensions.auth.registerAsync(req.body)
-			res.status(httpStatusCodes.OK).send()
+			logNotice(`User ${stringify(req.body)} registered by auth service}`)
+			res.status(httpStatusCodes.OK).send(req.body)
 		}
 		catch (err) {
 			res.status(httpStatusCodes.FORBIDDEN).send(err)

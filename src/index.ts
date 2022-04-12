@@ -5,7 +5,7 @@ import { default as passportLocal } from "passport-local"
 import { hasValue, request, HTTP_STATUS_CODES as httpStatusCodes } from "@agyemanjp/standard"
 
 import { EntityModel } from "./schema"
-import { uid, logNotice } from "./utils"
+import { uid, logNotice, logWarning, logError } from "./utils"
 
 export const getRoutes = (authURL: string, appName: string) => {
 	configurePassport(authURL, appName)
@@ -15,10 +15,10 @@ export const getRoutes = (authURL: string, appName: string) => {
 
 		["post", "/signup", async (req, res, next) => {
 			// console.log(`Request body sent to signup post: ${stringify(req.body)}`)
-
 			passport.authenticate('local-signup', (errAuth, user, info) => {
 				if (errAuth || !user) {
-					const msg = `Signup failed for ${req.body.email_addr}\n${errAuth ?? info.message}`
+					const msg = `Signup failed for ${req.body.email_addr}`
+					logError(errAuth ?? info.message)
 					res.status(httpStatusCodes.BAD_REQUEST).send(msg)
 				}
 				else {
@@ -45,10 +45,10 @@ export const getRoutes = (authURL: string, appName: string) => {
 
 		["post", "/login", (req, res, next) => {
 			// console.log(`Request body sent to login post: ${stringify(req.body)}`)
-
 			passport.authenticate('local-login', (errAuth, user, info) => {
 				if (errAuth || !user) {
-					const msg = `Login failed for '${req.body.email_addr}'\n${errAuth ?? info.message}`
+					const msg = `Login failed for '${req.body.email_addr}'`
+					logError(errAuth ?? info.message)
 					res.status(httpStatusCodes.BAD_REQUEST).send(msg)
 				}
 				else {
@@ -79,6 +79,7 @@ export const getRoutes = (authURL: string, appName: string) => {
 				const user = await request({
 					url: `${authURL}/${appName}/verifications`,
 					body: req.body,
+					headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
 					customFetch: crossFetch
 				}).post({ responseType: "json" })
 				res.status(httpStatusCodes.OK).json(user)
@@ -105,6 +106,7 @@ export function configurePassport(authURL: string, appName: string) {
 		try {
 			const user = await request({
 				url: `${authURL}/${appName}/users/${id}`,
+				headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
 				customFetch: crossFetch
 			}).get({ responseType: "json" })
 
@@ -126,7 +128,12 @@ export function configurePassport(authURL: string, appName: string) {
 				const user = await request(
 					{
 						url: `${authURL}/${appName}/authenticate/`,
-						headers: { email, pwd },
+						headers: {
+							email,
+							pwd,
+							'Accept': 'application/json',
+							'Content-Type': 'application/json'
+						},
 						customFetch: crossFetch
 
 					})
@@ -169,6 +176,10 @@ export function configurePassport(authURL: string, appName: string) {
 								url: verificationURL
 							}
 						}),
+						headers: {
+							'Accept': 'application/json',
+							'Content-Type': 'application/json'
+						},
 						customFetch: crossFetch
 					})
 					.post({ responseType: "json" })
@@ -186,3 +197,5 @@ export function configurePassport(authURL: string, appName: string) {
 }
 
 export type User = EntityModel["usersReadonly"]
+
+// export * from "./components"
