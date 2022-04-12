@@ -19,10 +19,10 @@ import { default as morgan } from "morgan"
 import sslRedirect from "heroku-ssl-redirect"
 const MemoryStore = createMemoryStore(session)
 
-import { Obj, HTTP_STATUS_CODES as httpStatusCodes } from "@agyemanjp/standard"
+import { Obj, HTTP_STATUS_CODES as httpStatusCodes, stringify } from "@agyemanjp/standard"
 
 import { PostgresRepository } from "./repository"
-import { uid, logNotice, logWarning, logError, stringify } from "./utils"
+import { uid, logNotice, logWarning, logError } from "./utils"
 // import { DbUser } from "./types"
 
 

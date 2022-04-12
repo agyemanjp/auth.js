@@ -11,11 +11,11 @@ import {
 	Obj, Tuple, Filter, FilterSimple, FilterGroup, FilterGroupSimple,
 	toSnakeCase, toCamelCase,
 	objectFromTuples, entries,
-	hasValue
+	hasValue, stringify
 } from "@agyemanjp/standard"
 import { generateRepoGroupClass } from "@agyemanjp/storage"
 import { schema, EntityModel } from "./schema"
-import { stringify, logNotice, logWarning, logError, uid, sendMail } from "./utils"
+import { sendMail, logNotice, logWarning, logError, uid } from "./utils"
 
 
 export const PostgresRepository = generateRepoGroupClass(
