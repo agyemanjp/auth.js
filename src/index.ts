@@ -126,7 +126,7 @@ export function configurePassport(authURL: string, appName: string) {
 				const user = await request(
 					{
 						url: `${authURL}/${appName}/authenticate/`,
-						body: JSON.stringify({ email, pwd }),
+						headers: { email, pwd },
 						customFetch: crossFetch
 
 					})

@@ -187,8 +187,8 @@ function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
 		// logNotice(`Handling API repo Find with body ${stringify()}`)
 		const user = await dbRepository.extensions.auth.authenticateAsync(
 			{
-				email: req.body["email"],
-				pwd: req.body["pwd"]
+				email: String(req.headers["email"]),
+				pwd: String(req.headers["pwd"])
 			},
 			req.params.app
 		)
