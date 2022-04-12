@@ -4,7 +4,7 @@
 # Kill all previous connections, if any
 echo "
 Killing any connections to database ..."
-psql tabular -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'tabular' AND pid <> pg_backend_pid()";
+psql auth -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'tabular' AND pid <> pg_backend_pid()";
 
 echo "
 Dropping database ..."
@@ -16,5 +16,5 @@ createdb auth && \
 
 echo "
 Creating schema objects and initial data ..."
-psql auth -f ./src/data/init.sql
+psql auth -f ./src/db/init.sql
 

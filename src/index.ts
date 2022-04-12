@@ -79,7 +79,10 @@ export const getRoutes = (authURL: string, appName: string) => {
 				const user = await request({
 					url: `${authURL}/${appName}/verifications`,
 					body: req.body,
-					headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+					// headers: {
+					// 	'Accept': 'application/json', 
+					// 	'Content-Type': 'application/json'
+					// },
 					customFetch: crossFetch
 				}).post({ responseType: "json" })
 				res.status(httpStatusCodes.OK).json(user)
@@ -106,7 +109,9 @@ export function configurePassport(authURL: string, appName: string) {
 		try {
 			const user = await request({
 				url: `${authURL}/${appName}/users/${id}`,
-				headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+				// headers: {
+				// 	'Accept': 'application/json', 'Content-Type': 'application/json'
+				// },
 				customFetch: crossFetch
 			}).get({ responseType: "json" })
 
@@ -131,8 +136,8 @@ export function configurePassport(authURL: string, appName: string) {
 						headers: {
 							email,
 							pwd,
-							'Accept': 'application/json',
-							'Content-Type': 'application/json'
+							// 'Accept': 'application/json',
+							// 'Content-Type': 'application/json'
 						},
 						customFetch: crossFetch
 
@@ -176,10 +181,10 @@ export function configurePassport(authURL: string, appName: string) {
 								url: verificationURL
 							}
 						}),
-						headers: {
-							'Accept': 'application/json',
-							'Content-Type': 'application/json'
-						},
+						// headers: {
+						// 	'Accept': 'application/json',
+						// 	'Content-Type': 'application/json'
+						// },
 						customFetch: crossFetch
 					})
 					.post({ responseType: "json" })

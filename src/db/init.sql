@@ -80,7 +80,8 @@ CREATE OR REPLACE FUNCTION insert_users (entities json) RETURNS void
 					access_level, 
 					pwd_salt, 
 					pwd_hash, 
-					verification_code
+					verification_code,
+					app
 				)
 				VALUES (
 					entity ->> 'id', 
@@ -91,7 +92,6 @@ CREATE OR REPLACE FUNCTION insert_users (entities json) RETURNS void
 					entity ->> 'pwdSalt', 
 					entity ->> 'pwdHash', 
 					entity ->> 'verificationCode', 
-					(entity ->> 'whenVerified')::BIGINT,
 					entity ->> 'app'
 				);
 			END LOOP;

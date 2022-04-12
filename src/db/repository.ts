@@ -259,25 +259,31 @@ export const PostgresRepository = generateRepoGroupClass(
 				})
 			},
 			registerAsync: async (args: EntityModel["usersReadonly"] & { password?: string, verification: { code: string, url: string } }): Promise<void> => {
-				const { password, ...user } = args
-				if (!password)
-					throw new Error(`Cannot register user without password`)
-				const pwdSalt = bcrypt.genSaltSync()
-				const pwdHash = bcrypt.hashSync(password, pwdSalt)
-				const verificationCode = args.verification.code
-				const userToBeRegistered = { ...user, pwdHash, pwdSalt, verificationCode, whenVerified: null }
-				await io.insertAsync({ entity: "users", obj: userToBeRegistered })
+				try {
+					const { password, ...user } = args
+					if (!password)
+						throw new Error(`Cannot register user without password`)
+					const pwdSalt = bcrypt.genSaltSync()
+					const pwdHash = bcrypt.hashSync(password, pwdSalt)
+					const verificationCode = args.verification.code
+					const userToBeRegistered = { ...user, pwdHash, pwdSalt, verificationCode, whenVerified: null }
+					await io.insertAsync({ entity: "users", obj: userToBeRegistered })
 
-				logNotice(`User registered, sending verification email`)
+					logNotice(`User registered, sending verification email`)
 
-				sendMail({
-					from: "noreply@nxthaus.com",
-					to: user.emailAddress,
-					subject: "Email Verification",
-					text: `Hello ${user.displayName},`
-						+ `\nPlease click this link (or copy and paste it in your browser address bar and enter) `
-						+ `to verify your new account:\n${args.verification.url}`
-				})
+					sendMail({
+						from: "noreply@nxthaus.com",
+						to: user.emailAddress,
+						subject: "Email Verification",
+						text: `Hello ${user.displayName},`
+							+ `\nPlease click this link (or copy and paste it in your browser address bar and enter) `
+							+ `to verify your new account:\n${args.verification.url}`
+					})
+				}
+				catch (err) {
+					logError(String(err))
+					throw err
+				}
 			},
 			verifyAsync: async (args: { emailAddress: string, verificationCode: string, accessLevel?: number }, appName: string): Promise<EntityModel["usersReadonly"] | undefined> => {
 				const { emailAddress, verificationCode, accessLevel } = args
