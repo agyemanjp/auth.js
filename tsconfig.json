@@ -1,0 +1,38 @@
+{
+	"compilerOptions": {
+		"target": "es2015",
+		"module": "CommonJS",
+		"moduleResolution": "node",
+		"allowSyntheticDefaultImports": true,
+		"downlevelIteration": true,
+		"esModuleInterop": true,
+		"lib": [
+			"ESNext",
+			"ES2018",
+			"es7",
+			"es6",
+			"es5",
+			"dom",
+			"es2015.promise",
+			"scripthost",
+			"dom.iterable",
+			"esnext.asynciterable"
+		],
+		"keyofStringsOnly": true,
+		"strict": true,
+		"strictNullChecks": true,
+		"skipLibCheck": true,
+		"incremental": true,
+		"declaration": true,
+		// "sourceMap": true,
+		"rootDirs": [
+			"./src",
+			"./src/lib",
+			"./src/db",
+			"./src/test"
+		]
+	},
+	"include": [
+		"./src"
+	]
+}

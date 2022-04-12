@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+echo "
+Cleaning any previous install..."
+rm -rf ./node_modules ./package-lock.json && npm cache clean --force && \
+
+echo "
+Installing dependencies..."
+npm install

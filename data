@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+
+# Kill all previous connections, if any
+echo "
+Killing any connections to database ..."
+psql tabular -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'tabular' AND pid <> pg_backend_pid()";
+
+echo "
+Dropping database ..."
+dropdb auth && \
+
+echo "
+Creating database ..."
+createdb auth && \
+
+echo "
+Creating schema objects and initial data ..."
+psql auth -f ./src/data/init.sql
+

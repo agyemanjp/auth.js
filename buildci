@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+# Clear previous build output files
+echo "
+Clear previous build output files..."
+rm -rf dist .eslintcache .rollup.cache .lint.run.json .test.run.json && \
+
+# Lint source files
+echo "
+Lint source files..."
+npx eslint --output-file .lint.run.json --format json-standard --cache 'src/**' && \
+
+# Compile code for server
+echo "
+Compile code for server..." && \
+npx tsc --outDir ./dist && \
+
+# Flatten compiled server files 
+echo "
+Flatten compiled server files..." && \
+# find dist/server -mindepth 2 -type f -exec mv -t dist/server -i '{}' + && rm -r dist/server/*/
+find dist/ -mindepth 2 -type f -exec mv -i '{}' dist/ ';' && rm -r dist/*/ && \
+
+# Stage test files
+echo "
+Stage test files..." && \
+mkdir -p dist/test && mv dist/*.test.* dist/test && \
+
+# Compile and bundle code for client. Creates dist/public folder
+echo "
+Compile and bundle code for client..." && \
+npx rollup -c && \
+
+# Copy static files to dist/public folder
+echo "
+Copy static files to dist/public folder..." && \
+cp src/static/**/*.* dist/public && \
+		
+# Test build
+echo "
+Test build" && \
+npx mocha dist/test/*.test.js --reporter mocha-reporter-json-standard >| .test.run.json
