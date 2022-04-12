@@ -1,12 +1,85 @@
+import * as express from 'express'
 import { default as passport } from 'passport'
 import { default as passportLocal } from "passport-local"
-import * as express from 'express'
 import { hasValue, request, HTTP_STATUS_CODES as httpStatusCodes } from "@agyemanjp/standard"
 
 import { EntityModel } from "./schema"
 import { uid, logNotice } from "./utils"
 
-type User = EntityModel["usersReadonly"]
+export const getRoutes = (authURL: string, appName: string) => {
+	configurePassport(authURL, appName)
+	return [
+		["use", "", passport.initialize()],
+		["use", "", passport.session()], // initialize & set up passport session (e.g., req.user)
+
+		["post", "/signup", async (req, res, next) => {
+			// console.log(`Request body sent to signup post: ${stringify(req.body)}`)
+
+			passport.authenticate('local-signup', (errAuth, user, info) => {
+				if (errAuth || !user) {
+					const msg = `Signup failed for ${req.body.email_addr}\n${errAuth ?? info.message}`
+					res.status(httpStatusCodes.BAD_REQUEST).send(msg)
+				}
+				else {
+					// log(`About to req.logIn(user...`)
+					req.logIn(user, async (errLogin) => {
+						if (errLogin) {
+							res.status(httpStatusCodes.UNAUTHORIZED).send(`Login failed for user ${user}: ${errLogin}`)
+						}
+						else {
+							// log(`User logged in after signup`)
+
+							if (req.session) req.session.cookie.maxAge = 5184000000
+							if (req.headers["accept"] === "application/json") {
+								res.json(user)
+							}
+							else {
+								res.redirect(String(req.query.return_url) ?? "/")
+							}
+						}
+					})
+				}
+			})(req, res, next)
+		}],
+
+		["post", "/login", (req, res, next) => {
+			// console.log(`Request body sent to login post: ${stringify(req.body)}`)
+
+			passport.authenticate('local-login', (errAuth, user, info) => {
+				if (errAuth || !user) {
+					const msg = `Login failed for '${req.body.email_addr}'\n${errAuth ?? info.message}`
+					res.status(httpStatusCodes.BAD_REQUEST).send(msg)
+				}
+				else {
+					// eslint-disable-next-line no-shadow
+					req.logIn(user, async (err) => {
+						if (err) {
+							res.status(400).send(`Login failed: ${err}`)
+						}
+						else {
+							if (req.session) {
+								// eslint-disable-next-line fp/no-mutation
+								req.session.cookie.maxAge = req.body.remember === "true"
+									? 5184000000 /* 2 months */
+									: 900000 /* 15 minutes */
+							}
+							res.redirect(req.query && hasValue(req.query.return_url)
+								? String(req.query.return_url)
+								: "/"
+							)
+						}
+					})
+				}
+			})(req, res, next)
+		}],
+
+		["get", "/logout", (req, res) => {
+			// console.log(`Logging out via GET`)
+			req.logOut()
+			res.redirect('/')
+		}]
+	] as ["use" | "post", string, express.Handler][]
+}
 
 export function configurePassport(authURL: string, appName: string) {
 	// construct & configure passport instance
@@ -91,75 +164,4 @@ export function configurePassport(authURL: string, appName: string) {
 	return passport
 }
 
-export const routes = [
-	["use", "", passport.initialize()],
-	["use", "", passport.session()], // initialize & set up passport session (e.g., req.user)
-
-	["post", "/signup", async (req, res, next) => {
-		// console.log(`Request body sent to signup post: ${stringify(req.body)}`)
-
-		passport.authenticate('local-signup', (errAuth, user, info) => {
-			if (errAuth || !user) {
-				const msg = `Signup failed for ${req.body.email_addr}\n${errAuth ?? info.message}`
-				res.status(httpStatusCodes.BAD_REQUEST).send(msg)
-			}
-			else {
-				// log(`About to req.logIn(user...`)
-				req.logIn(user, async (errLogin) => {
-					if (errLogin) {
-						res.status(httpStatusCodes.UNAUTHORIZED).send(`Login failed for user ${user}: ${errLogin}`)
-					}
-					else {
-						// log(`User logged in after signup`)
-
-						if (req.session) req.session.cookie.maxAge = 5184000000
-						if (req.headers["accept"] === "application/json") {
-							res.json(user)
-						}
-						else {
-							res.redirect(String(req.query.return_url) ?? "/")
-						}
-					}
-				})
-			}
-		})(req, res, next)
-	}],
-
-	["post", "/login", (req, res, next) => {
-		// console.log(`Request body sent to login post: ${stringify(req.body)}`)
-
-		passport.authenticate('local-login', (errAuth, user, info) => {
-			if (errAuth || !user) {
-				const msg = `Login failed for '${req.body.email_addr}'\n${errAuth ?? info.message}`
-				res.status(httpStatusCodes.BAD_REQUEST).send(msg)
-			}
-			else {
-				// eslint-disable-next-line no-shadow
-				req.logIn(user, async (err) => {
-					if (err) {
-						res.status(400).send(`Login failed: ${err}`)
-					}
-					else {
-						if (req.session) {
-							// eslint-disable-next-line fp/no-mutation
-							req.session.cookie.maxAge = req.body.remember === "true"
-								? 5184000000 /* 2 months */
-								: 900000 /* 15 minutes */
-						}
-						res.redirect(req.query && hasValue(req.query.return_url)
-							? String(req.query.return_url)
-							: "/"
-						)
-					}
-				})
-			}
-		})(req, res, next)
-	}],
-
-	["get", "/logout", (req, res) => {
-		// console.log(`Logging out via GET`)
-		req.logOut()
-		res.redirect('/')
-	}]
-] as ["use" | "post", string, express.Handler][]
-
+export type User = EntityModel["usersReadonly"]

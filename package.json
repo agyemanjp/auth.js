@@ -18,7 +18,7 @@
 		"name": "James A Prempeh"
 	},
 	"dependencies": {
-		"@agyemanjp/standard": "^3.11.14",
+		"@agyemanjp/standard": "^3.11.15",
 		"@agyemanjp/storage": "^1.4.14",
 		"bcryptjs": "^2.4.3",
 		"chalk": "^4.1.2",
