@@ -1,3 +1,4 @@
+import { default as crossFetch } from "cross-fetch"
 import * as express from 'express'
 import { default as passport } from 'passport'
 import { default as passportLocal } from "passport-local"
@@ -73,6 +74,20 @@ export const getRoutes = (authURL: string, appName: string) => {
 			})(req, res, next)
 		}],
 
+		["post", "/verify", async (req, res, next) => {
+			try {
+				const user = await request({
+					url: `${authURL}/${appName}/verifications`,
+					body: req.body,
+					customFetch: crossFetch
+				}).post({ responseType: "json" })
+				res.status(httpStatusCodes.OK).json(user)
+			}
+			catch (err) {
+				res.status(httpStatusCodes.FORBIDDEN).send(err)
+			}
+		}],
+
 		["get", "/logout", (req, res) => {
 			// console.log(`Logging out via GET`)
 			req.logOut()
@@ -88,7 +103,10 @@ export function configurePassport(authURL: string, appName: string) {
 	passport.serializeUser<string>((user, done) => { done(null, (user as User).id) })
 	passport.deserializeUser<string>(async (id, done) => {
 		try {
-			const user = await request({ url: `${authURL}/${appName}/users/${id}` }).get({ responseType: "json" })
+			const user = await request({
+				url: `${authURL}/${appName}/users/${id}`,
+				customFetch: crossFetch
+			}).get({ responseType: "json" })
 
 			// log(`Deserialized user '${JSON.stringify(user)}'`)
 			return done(null, user)
@@ -108,7 +126,9 @@ export function configurePassport(authURL: string, appName: string) {
 				const user = await request(
 					{
 						url: `${authURL}/${appName}/authenticate/`,
-						body: JSON.stringify({ email, pwd })
+						body: JSON.stringify({ email, pwd }),
+						customFetch: crossFetch
+
 					})
 					.get({ responseType: "json" })
 
@@ -148,7 +168,8 @@ export function configurePassport(authURL: string, appName: string) {
 								code: verificationCode,
 								url: verificationURL
 							}
-						})
+						}),
+						customFetch: crossFetch
 					})
 					.post({ responseType: "json" })
 
