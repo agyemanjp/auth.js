@@ -4,7 +4,7 @@ import { default as passport } from 'passport'
 import { default as passportLocal } from "passport-local"
 import { hasValue, request, HTTP_STATUS_CODES as httpStatusCodes } from "@agyemanjp/standard"
 
-import { EntityModel, User } from "./schema"
+import { User } from "./schema"
 import { uid } from "./utils"
 
 export const getRoutes = (authURL: string, appName: string) => {
@@ -201,4 +201,5 @@ export function configurePassport(authURL: string, appName: string) {
 	return passport
 }
 
+export * from "./types"
 export { User } 
