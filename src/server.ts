@@ -227,6 +227,35 @@ function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
 		}
 	})
 
+	app.get("/:app/res_access_counts", async (req, res) => {
+		// console.log(`Starting access logging for ${stringify(req.body)}`)
+		try {
+			const counts = await dbRepository.getAsync("resourceAccessCounts", {
+				filters: [
+					{
+						fieldName: "userId",
+						operator: "equals",
+						value: String(req.query.user_id)
+					},
+					{
+						fieldName: "resourceCode",
+						operator: "equals",
+						value: String(req.query.resource_code)
+					},
+					{
+						fieldName: "app",
+						operator: "equals",
+						value: req.params.app
+					}
+				]
+			})
+			res.status(httpStatusCodes.OK).json(counts)
+		}
+		catch (err) {
+			res.status(httpStatusCodes.FORBIDDEN).send(err)
+		}
+	})
+
 	// default route
 	app.get('/*', (req, res) => {
 		console.warn(`Handling unknown API route ${req.url}`)

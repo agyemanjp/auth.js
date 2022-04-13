@@ -94,6 +94,21 @@ export const appAuthRoutesFactory = (authURL: string, appName: string): [Lowerca
 			res.redirect('/')
 		}],
 
+		["post", "/:app/res_access_counts", async (req, res) => {
+			// console.log(`Starting access logging for ${stringify(req.body)}`)
+			try {
+				const counts = await request({
+					url: `${authURL}/${appName}/res_access_counts`,
+					body: req.body,
+					customFetch: crossFetch
+				}).post({ responseType: "json" })
+				res.status(httpStatusCodes.OK).json(counts)
+			}
+			catch (err) {
+				res.status(httpStatusCodes.FORBIDDEN).send(err)
+			}
+		}],
+
 		["get", "/res_access_counts", async (req, res) => {
 			try {
 				const counts = await request({
