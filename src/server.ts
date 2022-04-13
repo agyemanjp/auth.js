@@ -210,10 +210,15 @@ function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
 		}
 	})
 
-	app.post("/:app/access_counts", async (req, res) => {
+	app.post("/:app/res_access_counts", async (req, res) => {
 		console.log(`Starting access logging for ${stringify(req.body)}`)
 		try {
-			await dbRepository.extensions.logAccessAsync({ ...req.body, app: req.params.app })
+			await dbRepository.extensions.logAccessAsync({
+				userId: String(req.query.user_id),
+				resourceCode: String(req.query.resource_code),
+				resourceType: String(req.query.resource_type),
+				app: req.params.app
+			})
 			console.log(`Access logged for ${stringify(req.body)}`)
 			res.status(httpStatusCodes.OK).send(req.body)
 		}

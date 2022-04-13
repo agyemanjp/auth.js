@@ -58,3 +58,4 @@ export type EntityModel = {
 }
 
 export type User = EntityModel["usersReadonly"]
+export type ResourceAccessCount = EntityModel["resourceAccessCounts"]

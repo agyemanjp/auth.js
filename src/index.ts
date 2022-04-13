@@ -2,12 +2,12 @@ import { default as crossFetch } from "cross-fetch"
 import * as express from 'express'
 import { default as passport } from 'passport'
 import { default as passportLocal } from "passport-local"
-import { hasValue, request, HTTP_STATUS_CODES as httpStatusCodes } from "@agyemanjp/standard"
+import { Obj, hasValue, request, Method, HTTP_STATUS_CODES as httpStatusCodes } from "@agyemanjp/standard"
 
-import { User } from "./schema"
+import { User, ResourceAccessCount } from "./schema"
 import { uid } from "./utils"
 
-export const getRoutes = (authURL: string, appName: string) => {
+export const appAuthRoutesFactory = (authURL: string, appName: string): [Lowercase<Method> | "use", string, express.Handler][] => {
 	configurePassport(authURL, appName)
 	return [
 		["use", "", passport.initialize()],
@@ -74,15 +74,11 @@ export const getRoutes = (authURL: string, appName: string) => {
 			})(req, res, next)
 		}],
 
-		["post", "/verify", async (req, res, next) => {
+		["post", "/verify", async (req, res) => {
 			try {
 				const user = await request({
 					url: `${authURL}/${appName}/verifications`,
 					body: req.body,
-					// headers: {
-					// 	'Accept': 'application/json', 
-					// 	'Content-Type': 'application/json'
-					// },
 					customFetch: crossFetch
 				}).post({ responseType: "json" })
 				res.status(httpStatusCodes.OK).json(user)
@@ -96,8 +92,24 @@ export const getRoutes = (authURL: string, appName: string) => {
 			// console.log(`Logging out via GET`)
 			req.logOut()
 			res.redirect('/')
-		}]
-	] as ["use" | "post", string, express.Handler][]
+		}],
+
+		["get", "/res_access_counts", async (req, res) => {
+			try {
+				const counts = await request({
+					url: `${authURL}/${appName}/res_access_counts`,
+					query: typeof req.query === "object"
+						? req.query as Obj<string>
+						: {},
+					customFetch: crossFetch
+				}).get({ responseType: "json" })
+				res.status(httpStatusCodes.OK).json(counts)
+			}
+			catch (err) {
+				res.status(httpStatusCodes.FORBIDDEN).send(err)
+			}
+		}],
+	]
 }
 
 export function configurePassport(authURL: string, appName: string) {
@@ -202,4 +214,4 @@ export function configurePassport(authURL: string, appName: string) {
 }
 
 export * from "./types"
-export { User } 
+export { User, ResourceAccessCount } 

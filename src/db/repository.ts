@@ -354,7 +354,7 @@ export const PostgresRepository = generateRepoGroupClass(
 			},
 			updateAsync: async (obj: EntityModel["users"]) => io.updateAsync({ entity: "users", obj }),
 		},
-		logAccessAsync: async (obj: Omit<EntityModel["resourceAccessCounts"], "count" | "app">): Promise<EntityModel["resourceAccessCounts"]> => {
+		logAccessAsync: async (obj: Omit<EntityModel["resourceAccessCounts"], "count">): Promise<EntityModel["resourceAccessCounts"]> => {
 			console.log(`Logging resource access '${stringify(obj)}'`)
 			try {
 				return await io.runAsync("log_resource_access", obj)
