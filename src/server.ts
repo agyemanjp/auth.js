@@ -22,7 +22,7 @@ const MemoryStore = createMemoryStore(session)
 import { Obj, HTTP_STATUS_CODES as httpStatusCodes, stringify } from "@agyemanjp/standard"
 
 import { PostgresRepository } from "./repository"
-import { uid, logNotice, logWarning, logError } from "./utils"
+import { uid } from "./utils"
 // import { DbUser } from "./types"
 
 
@@ -33,14 +33,14 @@ import { uid, logNotice, logWarning, logError } from "./utils"
 
 	const sockets: Obj<Net.Socket> = {}
 
-	// logNotice(`process.env.DATABASE_URL: ${process.env.DATABASE_URL} `)
+	// console.log(`process.env.DATABASE_URL: ${process.env.DATABASE_URL} `)
 	const dbRepo = new PostgresRepository({ dbUrl: process.env.DATABASE_URL! })
 
 	const app = createApp(dbRepo)
 
-	logNotice(`\n${APP_NAME} server starting...`)
+	console.log(`\n${APP_NAME} server starting...`)
 	const server = app.listen(PORT, () => {
-		logNotice(`${APP_NAME} server started on port ${PORT} at ${new Date().toLocaleString()} \n`, true)
+		console.log(`${APP_NAME} server started on port ${PORT} at ${new Date().toLocaleString()} \n`, true)
 	})
 	server.on('connection', socket => {
 		const socketId = uid()
@@ -51,12 +51,12 @@ import { uid, logNotice, logWarning, logError } from "./utils"
 
 	const cleanShutdown = (reason: unknown, error?: unknown) => {
 		if (error)
-			logError(`\n${APP_NAME} server shutting down due to: ${reason}\n${error instanceof Error ? error.stack : error}`)
+			console.error(`\n${APP_NAME} server shutting down due to: ${reason}\n${error instanceof Error ? error.stack : error}`)
 		else
-			logWarning(`\n${APP_NAME} server shutting down due to: ${reason}`)
+			console.warn(`\n${APP_NAME} server shutting down due to: ${reason}`)
 
 		server.close(() => {
-			logNotice(`${APP_NAME} server closed\n`)
+			console.log(`${APP_NAME} server closed\n`)
 			process.exit(error === undefined ? 0 : 1)
 		})
 
@@ -75,7 +75,7 @@ import { uid, logNotice, logWarning, logError } from "./utils"
 
 /** Create and return the server app with middleware and routes applied to it */
 function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
-	// logNotice(`Creating app...`)
+	// console.log(`Creating app...`)
 	const app = express.default()
 
 	// middlware 
@@ -98,34 +98,34 @@ function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
 
 	// api routes
 	app.get("/:app/users", (req, res) => {
-		// logNotice(`Handling API repo Get with entity = ${entity} and body ${stringify(req.body)}`)
+		// console.log(`Handling API repo Get with entity = ${entity} and body ${stringify(req.body)}`)
 		const filters = req.query.filter ? JSON.parse(req.query.filter as string) : undefined
 		return dbRepository
 			.getAsync("usersReadonly", filters)
 			.then(res.json.bind(res))
 			.catch(err => {
-				logError(err)
+				console.error(err)
 				res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
 			})
 	})
 	app.get("/:app/users/:id", (req, res) => {
-		// logNotice(`Handling API repo Find with body ${stringify(req.body)}`)
+		// console.log(`Handling API repo Find with body ${stringify(req.body)}`)
 		return dbRepository
 			.findAsync("usersReadonly", req.params["id"])
 			.then(res.json.bind(res))
 			.catch(err => {
-				logError(err)
+				console.error(err)
 				res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
 			})
 	})
 
 	app.post("/:app/users/:id", (req, res) => {
-		// logNotice(`Handling API repo POST with body ${stringify(req.body)}`)
+		// console.log(`Handling API repo POST with body ${stringify(req.body)}`)
 		return dbRepository
 			.insertAsync("users", req.body)
 			.then(() => res.send())
 			.catch(err => {
-				logError(err)
+				console.error(err)
 				res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
 			})
 	})
@@ -137,7 +137,7 @@ function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
 				{ fieldName: "verificationCode", operator: "equals", value: verificationCode }
 			]
 		})
-		logNotice(`Users matching verification found: ${stringify(users)}`)
+		console.log(`Users matching verification found: ${stringify(users)}`)
 
 		if (users.length > 0) {
 			const updatedUser = {
@@ -162,29 +162,29 @@ function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
 	})
 
 	app.put("/:app/users/:id", (req, res) => {
-		// logNotice(`Handling API repo PUT with body ${stringify(req.body)}`)
+		// console.log(`Handling API repo PUT with body ${stringify(req.body)}`)
 		return dbRepository
 			.updateAsync("users", req.body)
 			.then(() => res.send())
 			.catch(err => {
-				logError(err)
+				console.error(err)
 				res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
 			})
 	})
 
 	app.delete("/:app/users/:id", (req, res) => {
-		// logNotice(`Handling API repo DELETE with entity = ${entity} and id = ${stringify(req.params.id)}`)
+		// console.log(`Handling API repo DELETE with entity = ${entity} and id = ${stringify(req.params.id)}`)
 		return dbRepository
 			.deleteAsync("users", req.params.id)
 			.then(() => res.send())
 			.catch(err => {
-				logError(err)
+				console.error(err)
 				res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
 			})
 	})
 
 	app.get("/:app/authenticate", async (req, res) => {
-		// logNotice(`Handling API repo Find with body ${stringify()}`)
+		// console.log(`Handling API repo Find with body ${stringify()}`)
 		const user = await dbRepository.extensions.auth.authenticateAsync(
 			{
 				email: String(req.headers["email"]),
@@ -199,10 +199,22 @@ function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
 			res.status(httpStatusCodes.FORBIDDEN).send()
 	})
 	app.post("/:app/register", async (req, res) => {
-		logNotice(`Starting user registration for ${stringify(req.body)} in auth service`)
+		console.log(`Starting user registration for ${stringify(req.body)} in auth service`)
 		try {
 			await dbRepository.extensions.auth.registerAsync(req.body)
-			logNotice(`User ${stringify(req.body)} registered by auth service}`)
+			console.log(`User ${stringify(req.body)} registered by auth service}`)
+			res.status(httpStatusCodes.OK).send(req.body)
+		}
+		catch (err) {
+			res.status(httpStatusCodes.FORBIDDEN).send(err)
+		}
+	})
+
+	app.post("/:app/access_counts", async (req, res) => {
+		console.log(`Starting access logging for ${stringify(req.body)}`)
+		try {
+			await dbRepository.extensions.logAccessAsync({ ...req.body, app: req.params.app })
+			console.log(`Access logged for ${stringify(req.body)}`)
 			res.status(httpStatusCodes.OK).send(req.body)
 		}
 		catch (err) {
@@ -212,7 +224,7 @@ function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
 
 	// default route
 	app.get('/*', (req, res) => {
-		logWarning(`Handling unknown API route ${req.url}`)
+		console.warn(`Handling unknown API route ${req.url}`)
 		res.status(httpStatusCodes.NOT_FOUND).send()
 	})
 

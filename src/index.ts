@@ -4,8 +4,8 @@ import { default as passport } from 'passport'
 import { default as passportLocal } from "passport-local"
 import { hasValue, request, HTTP_STATUS_CODES as httpStatusCodes } from "@agyemanjp/standard"
 
-import { EntityModel } from "./schema"
-import { uid, logNotice, logWarning, logError } from "./utils"
+import { EntityModel, User } from "./schema"
+import { uid } from "./utils"
 
 export const getRoutes = (authURL: string, appName: string) => {
 	configurePassport(authURL, appName)
@@ -18,7 +18,7 @@ export const getRoutes = (authURL: string, appName: string) => {
 			passport.authenticate('local-signup', (errAuth, user, info) => {
 				if (errAuth || !user) {
 					const msg = `Signup failed for ${req.body.email_addr}`
-					logError(errAuth ?? info.message)
+					console.error(errAuth ?? info.message)
 					res.status(httpStatusCodes.BAD_REQUEST).send(msg)
 				}
 				else {
@@ -48,7 +48,7 @@ export const getRoutes = (authURL: string, appName: string) => {
 			passport.authenticate('local-login', (errAuth, user, info) => {
 				if (errAuth || !user) {
 					const msg = `Login failed for '${req.body.email_addr}'`
-					logError(errAuth ?? info.message)
+					console.error(errAuth ?? info.message)
 					res.status(httpStatusCodes.BAD_REQUEST).send(msg)
 				}
 				else {
@@ -169,7 +169,7 @@ export function configurePassport(authURL: string, appName: string) {
 				// log(`New user to be signed up: ${stringify(user)}`)
 				const verificationCode = uid()
 				const verificationURL = `https://${req.get('host')}/verify?email=${email}&code=${verificationCode}`
-				logNotice(`New user verification url: ${verificationURL}`)
+				console.log(`New user verification url: ${verificationURL}`)
 
 				await request(
 					{
@@ -201,6 +201,4 @@ export function configurePassport(authURL: string, appName: string) {
 	return passport
 }
 
-export type User = EntityModel["usersReadonly"]
-
-// export * from "./components"
+export { User } 

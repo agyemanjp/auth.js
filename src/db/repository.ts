@@ -14,8 +14,8 @@ import {
 	hasValue, stringify
 } from "@agyemanjp/standard"
 import { generateRepoGroupClass } from "@agyemanjp/storage"
-import { schema, EntityModel } from "./schema"
-import { sendMail, logNotice, logWarning, logError, uid } from "./utils"
+import { schema, EntityModel, User } from "./schema"
+import { sendMail, uid } from "./utils"
 
 
 export const PostgresRepository = generateRepoGroupClass(
@@ -165,7 +165,7 @@ export const PostgresRepository = generateRepoGroupClass(
 				const rowSetFn = interpolatableRowsetName(args.entity)
 				const whereClause = args.filter ? getWhereClause(args.filter) : `1=1`
 				const sql = `SELECT * FROM ${rowSetFn}() WHERE ${whereClause} LIMIT ${config.maxRows ?? 1000}`
-				logNotice(`Postgres running sql "${sql}"`)
+				console.log(`Postgres running sql "${sql}"`)
 				return db
 					.any({ text: sql })
 					.then(entities => {
@@ -176,7 +176,7 @@ export const PostgresRepository = generateRepoGroupClass(
 						return data
 					})
 					.catch(err => {
-						// logNotice(stringify(err))
+						// console.log(stringify(err))
 						throw `Postgres repository getAsync of ${args.entity}\n${err.message}`
 					})
 			},
@@ -190,7 +190,7 @@ export const PostgresRepository = generateRepoGroupClass(
 						text: `SELECT * from ${interpolatableRowsetName(args.entity, "insert")}($1) as result`,
 						values: [JSON.stringify([args.obj])]
 					})
-					.then(x => { logNotice(`Response from pG insert of ${stringify(args)}: ${stringify(x)}`) })
+					.then(x => { console.log(`Response from pG insert of ${stringify(args)}: ${stringify(x)}`) })
 					.catch(err => {
 						if (err.code == pgErrorsCode.UNIQUE_VIOLATION)
 							throw `Data duplication`
@@ -224,6 +224,25 @@ export const PostgresRepository = generateRepoGroupClass(
 				// console.log(`pg repository: delete sql to be executed: "${stmt}"`)
 				await db.none(stmt, [args.id])
 			},
+
+			runAsync: async function (operation, args) {
+				if (!hasValue(operation))
+					throw new Error(`runAsync(): operation argument is missing`)
+				if (!args)
+					throw new Error(`runAsync(): args argument is missing`)
+
+				return db
+					.query({
+						text: `SELECT * from ${operation}($1) as result`,
+						values: args
+					})
+					.catch(err => {
+						if (err.code == pgErrorsCode.UNIQUE_VIOLATION)
+							throw new Error(`Data duplication`, {})
+						else
+							throw new Error(`Error invoking function ${operation}: ${err.message}`)
+					})
+			}
 		}
 	},
 
@@ -249,7 +268,7 @@ export const PostgresRepository = generateRepoGroupClass(
 				return new Promise((resolve, reject) => {
 					bcrypt.compare(credentials.pwd, pwdHash as any, (err: Error, result: boolean) => {
 						if (result === true) {
-							resolve(readonlyUser)
+							resolve(readonlyUser as User)
 						}
 						else {
 							// error(String(err))
@@ -269,7 +288,7 @@ export const PostgresRepository = generateRepoGroupClass(
 					const userToBeRegistered = { ...user, pwdHash, pwdSalt, verificationCode, whenVerified: null }
 					await io.insertAsync({ entity: "users", obj: userToBeRegistered })
 
-					logNotice(`User registered, sending verification email`)
+					console.log(`User registered, sending verification email`)
 
 					sendMail({
 						from: "noreply@nxthaus.com",
@@ -281,7 +300,7 @@ export const PostgresRepository = generateRepoGroupClass(
 					})
 				}
 				catch (err) {
-					logError(String(err))
+					console.error(String(err))
 					throw err
 				}
 			},
@@ -297,7 +316,7 @@ export const PostgresRepository = generateRepoGroupClass(
 						]
 					}
 				})
-				logNotice(`Users matching verification found: ${stringify(users)}`)
+				console.log(`Users matching verification found: ${stringify(users)}`)
 
 				if (users.length > 0) {
 					await io.updateAsync({
@@ -312,7 +331,7 @@ export const PostgresRepository = generateRepoGroupClass(
 						}
 					})
 
-					return users[0]
+					return users[0] as User
 				}
 				else
 					return undefined
@@ -334,6 +353,16 @@ export const PostgresRepository = generateRepoGroupClass(
 				return io.findAsync({ entity: "usersReadonly", id: userid })
 			},
 			updateAsync: async (obj: EntityModel["users"]) => io.updateAsync({ entity: "users", obj }),
+		},
+		logAccessAsync: async (obj: Omit<EntityModel["resourceAccessCounts"], "count" | "app">): Promise<EntityModel["resourceAccessCounts"]> => {
+			console.log(`Logging resource access '${stringify(obj)}'`)
+			try {
+				return await io.runAsync("log_resource_access", obj)
+			}
+			catch (err) {
+				console.error(String(err))
+				throw err
+			}
 		}
 	})
 )
