@@ -12,20 +12,9 @@ rm -rf dist .eslintcache .rollup.cache .lint.run.json .test.run.json && \
 
 # Compile code for server
 echo "
-Compile code for server..." && \
+Compile code ..." && \
 npx tsc --outDir ./dist && \
 
-# Flatten compiled server files 
-echo "
-Flatten compiled server files..." && \
-# find dist/server -mindepth 2 -type f -exec mv -t dist/server -i '{}' + && rm -r dist/server/*/
-find dist/ -mindepth 2 -type f -exec mv -i '{}' dist/ ';' && rm -r dist/*/ && \
-
-# Stage test files
-echo "
-Stage test files..." && \
-mkdir -p dist/test && mv dist/*.test.* dist/test && \
-		
 # Test build
 echo "
 Test build" && \

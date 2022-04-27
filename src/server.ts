@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-types */
+/* eslint-disable camelcase */
 /* eslint-disable fp/no-mutation */
 /* eslint-disable @typescript-eslint/no-var-requires */
 /* eslint-disable no-shadow */
@@ -8,25 +10,244 @@
 
 import * as srcMapSupport from 'source-map-support'
 srcMapSupport.install({ environment: 'node' })
-import { config as configureEnvironment } from "dotenv"
-
-import * as Net from 'net'
 
 import * as express from 'express'
+
 import { default as session } from "express-session"
 import { default as createMemoryStore } from 'memorystore'
 import { default as morgan } from "morgan"
 import sslRedirect from "heroku-ssl-redirect"
-const MemoryStore = createMemoryStore(session)
 
-import { Obj, HTTP_STATUS_CODES as httpStatusCodes, stringify } from "@agyemanjp/standard"
+import { hasValue, Obj, stringify } from "@agyemanjp/standard"
+import { startServer, route } from "@agyemanjp/http/server"
+import { statusCodes } from "@agyemanjp/http/common"
 
+import { UserAccessLevel, User, ResourceAccessCount } from "./types"
+import { sanitizeUser } from "./utils"
 import { PostgresRepository } from "./repository"
-import { uid } from "./utils"
-// import { DbUser } from "./types"
+import { sendMail } from './lib/mail'
 
+const envKeys = ["DATABASE_URL", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_HOST", "SMTP_PORT", "NODE_ENV"] as const
+envKeys.forEach(key => { if (!hasValue(process.env[key])) throw `${key} env variable not found` })
+const env = process.env as Obj<string, typeof envKeys[number]>
 
-(() => { // start server 
+const db = new PostgresRepository({ dbUrl: env.DATABASE_URL })
+
+export const routes = ({
+	findUser: route
+		.get
+		.url("/:app/users/:id")
+		.queryType<{}>()
+		.returnType<User>()
+		.handler(async (args) => {
+			const users = await db
+				.getAsync("usersReadonly", {
+					filters: [
+						{
+							fieldName: "userId",
+							operator: "equals",
+							value: args.id
+						},
+						{
+							fieldName: "app",
+							operator: "equals",
+							value: args.app
+						}
+					]
+				})
+			if (users.length > 0)
+				return users[0] as User
+			else
+				throw `The requested resource could not be found but may be available in the future.`
+			// statusCodes.NOT_FOUND
+		}),
+
+	verify: route
+		.post
+		.url("/:app/verify")
+		.bodyType<{ emailAddress: string, verificationCode: string, accessLevel: UserAccessLevel }>()
+		.returnType<User>()
+		.handler(async (args) => {
+			const { emailAddress, verificationCode, accessLevel } = args
+			const users = await db.getAsync("users", {
+				filters: [
+					{ fieldName: "emailAdress", operator: "equals", value: emailAddress },
+					{ fieldName: "verificationCode", operator: "equals", value: verificationCode }
+				]
+			})
+			console.log(`Users matching verification found: ${stringify(users)}`)
+
+			if (users.length > 0) {
+				const updatedUser = {
+					...users[0],
+					whenVerified: Date.now(),
+					...(accessLevel ? { accessLevel: accessLevel } : {}
+					)
+				} as User
+				await db.updateAsync("usersReadonly", updatedUser)
+				return sanitizeUser(updatedUser)
+			}
+			else {
+				throw (statusCodes.NOT_FOUND.toString())
+			}
+		}),
+
+	register: route
+		.post
+		.url("/:app/register")
+		.bodyType<User & { password?: string | undefined; verificationCode: string }>()
+		.returnType<User>()
+		.handler(async (args) => {
+			console.log(`Starting user registration for ${stringify(args)} in auth service`)
+			try {
+				await db.extensions.auth.registerAsync(args)
+				console.log(`User ${stringify(args)} registered by auth service}`)
+				sendMail({
+					from: "noreply@nxthaus.com",
+					to: args.emailAddress,
+					subject: "Email Verification",
+					text: `Hello ${args.displayName},`
+						+ `\nPlease click this link (or copy and paste it in your browser address bar and enter) `
+						+ `to verify your new account:\n${args.app}/verify`
+				})
+				return (sanitizeUser(args))
+			}
+			catch (err) {
+				throw (statusCodes.FORBIDDEN)
+			}
+		}),
+
+	authenticate: route
+		.get
+		.url("/:app/authenticate")
+		.headersType<{ email: string, pwd: string }>()
+		.returnType<User>()
+		.handler(async (args) => {
+			// console.log(`Handling API repo Find with body ${stringify()}`)
+			const user = await db.extensions.auth.authenticateAsync(
+				{ email: String(args["email"]), pwd: String(args["pwd"]) },
+				args.app
+			)
+
+			if (user)
+				return (user as User)
+			else
+				throw (statusCodes.FORBIDDEN)
+		}),
+
+	deactivate: route
+		.delete
+		.url("/:app/deactivate/:id")
+		.queryType<Obj<never>>()
+		.returnType<null>()
+		.handler(async (args) => {
+			// console.log(`Handling API repo DELETE with entity = ${entity} and id = ${stringify(req.params.id)}`)
+			return db
+				.deleteAsync("users", args.id)
+				.then(() => null)
+				.catch(err => {
+					console.error(err)
+					throw (statusCodes.INTERNAL_SERVER_ERROR)
+				})
+		}),
+
+	logResourceAccess: route
+		.post
+		.url("/:app/res_access_counts")
+		.bodyType<{ userId: string, resourceCode: string, resourceType: string }>()
+		.returnType<ResourceAccessCount>()
+		.handler(async (args) => {
+			console.log(`Starting access logging for ${stringify(args)}`)
+			try {
+				const ret = await db.extensions.logAccessAsync({
+					userId: String(args.userId),
+					resourceCode: String(args.resourceCode),
+					resourceType: String(args.resourceType),
+					app: args.app
+				})
+				console.log(`Access logged for ${stringify(args)}`)
+				return (ret)
+			}
+			catch (err) {
+				throw statusCodes.FORBIDDEN
+			}
+		}),
+
+	getResourceAccess: route
+		.get
+		.url("/:app/res_access_counts")
+		.queryType<{ user_id: string, resource_code: string }>()
+		.returnType<ResourceAccessCount[]>()
+		.handler(async (args) => {
+			// console.log(`Starting access logging for ${stringify(req.body)}`)
+			try {
+				const counts = await db.getAsync("resourceAccessCounts", {
+					filters: [
+						{
+							fieldName: "userId",
+							operator: "equals",
+							value: String(args.user_id)
+						},
+						{
+							fieldName: "resourceCode",
+							operator: "equals",
+							value: String(args.resource_code)
+						},
+						{
+							fieldName: "app",
+							operator: "equals",
+							value: args.app
+						}
+					]
+				})
+				return counts
+			}
+			catch (err) {
+				throw statusCodes.FORBIDDEN
+			}
+		}),
+
+	default: route
+		.get
+		.url('/*')
+		.queryType<Obj<never>>()
+		.returnType<null>()
+		.handler((args) => {
+			console.warn(`Handling unknown API route ${args.url}`)
+			throw statusCodes.NOT_FOUND
+		})
+}) as const
+
+startServer({
+	name: "auth",
+	routes: [
+		morgan('tiny', { skip: (req: any) => req.baseUrl === "/static" }), // Set up request logging
+		express.urlencoded({ extended: true }), // Parse URL-encoded bodies
+		express.json({ limit: "20mb" }),
+		session({
+			resave: false,
+			rolling: true,
+			store: new (createMemoryStore(session))({
+				checkPeriod: 86400000 // prune expired entries every 24h
+			}),
+			// store: new SessionFileStorage({ path: './sessions/', /* secret: "" */ }),
+			secret: process.env.SESSION_SECRET || "nthsfweqweioyfqw",
+			cookie: { secure: false/*, maxAge: 1000 , httpOnly: false*/ },
+			saveUninitialized: false,
+		}),
+		sslRedirect(),
+
+		routes.register,
+		routes.verify,
+		routes.authenticate,
+		routes.deactivate,
+		routes.logResourceAccess,
+	],
+	port: 49722
+})
+
+// start server 
+/*(() => {
 	configureEnvironment()
 	const APP_NAME = "auth"
 	const PORT = process?.env?.PORT || "49722"
@@ -35,15 +256,14 @@ import { uid } from "./utils"
 
 	// console.log(`process.env.DATABASE_URL: ${process.env.DATABASE_URL} `)
 	const dbRepo = new PostgresRepository({ dbUrl: process.env.DATABASE_URL! })
-
-	const app = createApp(dbRepo)
+	const app = appFactory(dbRepo)
 
 	console.log(`\n${APP_NAME} server starting...`)
 	const server = app.listen(PORT, () => {
 		console.log(`${APP_NAME} server started on port ${PORT} at ${new Date().toLocaleString()} \n`, true)
 	})
 	server.on('connection', socket => {
-		const socketId = uid()
+		const socketId = cuid()
 		// eslint-disable-next-line fp/no-delete
 		socket.on('close', () => delete sockets[socketId])
 		sockets[socketId] = socket
@@ -71,199 +291,58 @@ import { uid } from "./utils"
 	process.on('SIGTERM', (signal) => cleanShutdown(signal))
 	process.on('SIGINT', (signal) => cleanShutdown(signal))
 })()
+*/
+
+/*const prx = routes.verify[3]
+const x = prx("auth.com/:cat/api")({
+	emailAddress: "",
+	verificationCode: "",
+	accessLevel: userAccessLevels.ADMIN,
+	app: "bexthaus",
+	cat: ""
+})*/
 
 
-/** Create and return the server app with middleware and routes applied to it */
-function createApp(dbRepository: InstanceType<typeof PostgresRepository>) {
-	// console.log(`Creating app...`)
-	const app = express.default()
-
-	// middlware 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	app.use(morgan('tiny', { skip: (req: any) => req.baseUrl === "/static" })) // set up request logging
-	app.use(express.urlencoded({ extended: true })) //Parse URL-encoded bodies
-	app.use(express.json({ limit: "20mb" }))
-	app.use(session({
-		resave: false,
-		rolling: true,
-		store: new MemoryStore({
-			checkPeriod: 86400000 // prune expired entries every 24h
-		}),
-		// store: new SessionFileStorage({ path: './sessions/', /* secret: "" */ }),
-		secret: process.env.SESSION_SECRET || "nthsfweqweioyfqw",
-		cookie: { secure: false/*, maxAge: 1000 , httpOnly: false*/ },
-		saveUninitialized: false,
-	}))
-	app.use(sslRedirect())
-
-	// api routes
-	app.get("/:app/users", (req, res) => {
-		// console.log(`Handling API repo Get with entity = ${entity} and body ${stringify(req.body)}`)
-		const filters = req.query.filter ? JSON.parse(req.query.filter as string) : undefined
-		return dbRepository
-			.getAsync("usersReadonly", filters)
-			.then(res.json.bind(res))
-			.catch(err => {
-				console.error(err)
-				res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
-			})
-	})
-	app.get("/:app/users/:id", (req, res) => {
-		// console.log(`Handling API repo Find with body ${stringify(req.body)}`)
-		return dbRepository
-			.findAsync("usersReadonly", req.params["id"])
-			.then(res.json.bind(res))
-			.catch(err => {
-				console.error(err)
-				res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
-			})
-	})
-
-	app.post("/:app/users/:id", (req, res) => {
-		// console.log(`Handling API repo POST with body ${stringify(req.body)}`)
-		return dbRepository
-			.insertAsync("users", req.body)
-			.then(() => res.send())
-			.catch(err => {
-				console.error(err)
-				res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
-			})
-	})
-	app.post("/:app/verifications", async (req, res) => {
-		const { emailAddress, verificationCode, accessLevel } = req.body
-		const users = await dbRepository.getAsync("users", {
-			filters: [
-				{ fieldName: "emailAdress", operator: "equals", value: emailAddress },
-				{ fieldName: "verificationCode", operator: "equals", value: verificationCode }
-			]
+/*
+app.get("/:app/users", (req, res) => {
+	// console.log(`Handling API repo Get with entity = ${entity} and body ${stringify(req.body)}`)
+	const filters = req.query.filter ? JSON.parse(req.query.filter as string) : undefined
+	return dbRepository
+		.getAsync("usersReadonly", filters)
+		.then(res.json.bind(res))
+		.catch(err => {
+			console.error(err)
+			res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
 		})
-		console.log(`Users matching verification found: ${stringify(users)}`)
-
-		if (users.length > 0) {
-			const updatedUser = {
-				...users[0],
-				whenVerified: Date.now(),
-				...(accessLevel ? { accessLevel } : {}
-				)
-			}
-			await dbRepository.updateAsync("users", updatedUser)
-
-			const sanitizedUser = {
-				...updatedUser,
-				pwdHash: undefined,
-				pwdSalt: undefined,
-				verificationCode: undefined
-			}
-			res.status(httpStatusCodes.OK).json(sanitizedUser)
-		}
-		else {
-			res.status(httpStatusCodes.FORBIDDEN).send()
-		}
-	})
-
-	app.put("/:app/users/:id", (req, res) => {
-		// console.log(`Handling API repo PUT with body ${stringify(req.body)}`)
-		return dbRepository
-			.updateAsync("users", req.body)
-			.then(() => res.send())
-			.catch(err => {
-				console.error(err)
-				res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
-			})
-	})
-
-	app.delete("/:app/users/:id", (req, res) => {
-		// console.log(`Handling API repo DELETE with entity = ${entity} and id = ${stringify(req.params.id)}`)
-		return dbRepository
-			.deleteAsync("users", req.params.id)
-			.then(() => res.send())
-			.catch(err => {
-				console.error(err)
-				res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
-			})
-	})
-
-	app.get("/:app/authenticate", async (req, res) => {
-		// console.log(`Handling API repo Find with body ${stringify()}`)
-		const user = await dbRepository.extensions.auth.authenticateAsync(
-			{
-				email: String(req.headers["email"]),
-				pwd: String(req.headers["pwd"])
-			},
-			req.params.app
-		)
-
-		if (user)
-			res.status(httpStatusCodes.OK).json(user)
-		else
-			res.status(httpStatusCodes.FORBIDDEN).send()
-	})
-	app.post("/:app/register", async (req, res) => {
-		console.log(`Starting user registration for ${stringify(req.body)} in auth service`)
-		try {
-			await dbRepository.extensions.auth.registerAsync(req.body)
-			console.log(`User ${stringify(req.body)} registered by auth service}`)
-			res.status(httpStatusCodes.OK).send(req.body)
-		}
-		catch (err) {
-			res.status(httpStatusCodes.FORBIDDEN).send(err)
-		}
-	})
-
-	app.post("/:app/res_access_counts", async (req, res) => {
-		console.log(`Starting access logging for ${stringify(req.body)}`)
-		try {
-			await dbRepository.extensions.logAccessAsync({
-				userId: String(req.query.user_id),
-				resourceCode: String(req.query.resource_code),
-				resourceType: String(req.query.resource_type),
-				app: req.params.app
-			})
-			console.log(`Access logged for ${stringify(req.body)}`)
-			res.status(httpStatusCodes.OK).send(req.body)
-		}
-		catch (err) {
-			res.status(httpStatusCodes.FORBIDDEN).send(err)
-		}
-	})
-
-	app.get("/:app/res_access_counts", async (req, res) => {
-		// console.log(`Starting access logging for ${stringify(req.body)}`)
-		try {
-			const counts = await dbRepository.getAsync("resourceAccessCounts", {
-				filters: [
-					{
-						fieldName: "userId",
-						operator: "equals",
-						value: String(req.query.user_id)
-					},
-					{
-						fieldName: "resourceCode",
-						operator: "equals",
-						value: String(req.query.resource_code)
-					},
-					{
-						fieldName: "app",
-						operator: "equals",
-						value: req.params.app
-					}
-				]
-			})
-			res.status(httpStatusCodes.OK).json(counts)
-		}
-		catch (err) {
-			res.status(httpStatusCodes.FORBIDDEN).send(err)
-		}
-	})
-
-	// default route
-	app.get('/*', (req, res) => {
-		console.warn(`Handling unknown API route ${req.url}`)
-		res.status(httpStatusCodes.NOT_FOUND).send()
-	})
-
-	return app
-}
-
-
-
+})
+app.get("/:app/users/:id", (req, res) => {
+	// console.log(`Handling API repo Find with body ${stringify(req.body)}`)
+	return dbRepository
+		.findAsync("usersReadonly", req.params["id"])
+		.then(res.json.bind(res))
+		.catch(err => {
+			console.error(err)
+			res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
+		})
+})
+app.post("/:app/users/:id", (req, res) => {
+	// console.log(`Handling API repo POST with body ${stringify(req.body)}`)
+	return dbRepository
+		.insertAsync("users", req.body)
+		.then(() => res.send())
+		.catch(err => {
+			console.error(err)
+			res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
+		})
+})
+app.put("/:app/users/:id", (req, res) => {
+	// console.log(`Handling API repo PUT with body ${stringify(req.body)}`)
+	return dbRepository
+		.updateAsync("users", req.body)
+		.then(() => res.send())
+		.catch(err => {
+			console.error(err)
+			res.status(httpStatusCodes.INTERNAL_SERVER_ERROR).send()
+		})
+})
+*/

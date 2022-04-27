@@ -1,6 +1,5 @@
 
 import { EntityType } from "@agyemanjp/storage"
-import { UserAccessLevel } from "./types"
 
 export const schema = {
 	users: {
@@ -52,10 +51,7 @@ export const schema = {
 export type T<E extends keyof typeof schema> = EntityType<(typeof schema)[E]>
 
 export type EntityModel = {
-	users: T<"users"> & { accessLevel: UserAccessLevel },
-	usersReadonly: T<"usersReadonly"> & { accessLevel: UserAccessLevel }
+	users: T<"users">,
+	usersReadonly: T<"usersReadonly">
 	resourceAccessCounts: T<"resourceAccessCounts">
 }
-
-export type User = EntityModel["usersReadonly"]
-export type ResourceAccessCount = EntityModel["resourceAccessCounts"]

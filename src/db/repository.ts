@@ -14,9 +14,9 @@ import {
 	hasValue, stringify
 } from "@agyemanjp/standard"
 import { generateRepoGroupClass } from "@agyemanjp/storage"
-import { schema, EntityModel, User } from "./schema"
-import { sendMail, uid } from "./utils"
-
+import { schema, EntityModel } from "./schema"
+// import { , uid } from "./utils"
+import { User } from "./types"
 
 export const PostgresRepository = generateRepoGroupClass(
 	schema,
@@ -277,27 +277,18 @@ export const PostgresRepository = generateRepoGroupClass(
 					})
 				})
 			},
-			registerAsync: async (args: EntityModel["usersReadonly"] & { password?: string, verification: { code: string, url: string } }): Promise<void> => {
+			registerAsync: async (args: EntityModel["usersReadonly"] & { password?: string, verificationCode: string }): Promise<void> => {
 				try {
 					const { password, ...user } = args
 					if (!password)
 						throw new Error(`Cannot register user without password`)
 					const pwdSalt = bcrypt.genSaltSync()
 					const pwdHash = bcrypt.hashSync(password, pwdSalt)
-					const verificationCode = args.verification.code
+					const verificationCode = args.verificationCode
 					const userToBeRegistered = { ...user, pwdHash, pwdSalt, verificationCode, whenVerified: null }
 					await io.insertAsync({ entity: "users", obj: userToBeRegistered })
 
 					console.log(`User registered, sending verification email`)
-
-					sendMail({
-						from: "noreply@nxthaus.com",
-						to: user.emailAddress,
-						subject: "Email Verification",
-						text: `Hello ${user.displayName},`
-							+ `\nPlease click this link (or copy and paste it in your browser address bar and enter) `
-							+ `to verify your new account:\n${args.verification.url}`
-					})
 				}
 				catch (err) {
 					console.error(String(err))
