@@ -33,7 +33,7 @@ const env = process.env as Obj<string, typeof envKeys[number]>
 
 const db = new PostgresRepository({ dbUrl: env.DATABASE_URL })
 
-export const routes = ({
+export const serverRoutes = ({
 	findUser: route
 		.get
 		.url("/:app/users/:id")
@@ -221,6 +221,7 @@ export const routes = ({
 startServer({
 	name: "auth",
 	routes: [
+		// Middleware
 		morgan('tiny', { skip: (req: any) => req.baseUrl === "/static" }), // Set up request logging
 		express.urlencoded({ extended: true }), // Parse URL-encoded bodies
 		express.json({ limit: "20mb" }),
@@ -237,11 +238,12 @@ startServer({
 		}),
 		sslRedirect(),
 
-		routes.register,
-		routes.verify,
-		routes.authenticate,
-		routes.deactivate,
-		routes.logResourceAccess,
+		// API
+		serverRoutes.register,
+		serverRoutes.verify,
+		serverRoutes.authenticate,
+		serverRoutes.deactivate,
+		serverRoutes.logResourceAccess,
 	],
 	port: 49722
 })

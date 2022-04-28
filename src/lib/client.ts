@@ -7,113 +7,199 @@ import { Obj, hasValue, ArgsType } from "@agyemanjp/standard"
 import { Method, statusCodes, proxy, route, request, clientRoute, Route, RouteFinal } from "@agyemanjp/http"
 import { default as cuid } from "cuid"
 
-
 import { User, UserAccessLevel, userAccessLevels } from "./types"
-import { EntityModel } from "./schema"
-import * as server from "./server"
+import { serverRoutes } from "./server"
 import { } from "./utils"
 
-export const uid = () => "_" + cuid().substring(1)
+export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
+	configurePassport()
+	return {
+		middleware: [
+			passport.initialize(), // initialize passport
+			passport.session(), // set up passport session (e.g., req.user)
+		] as express.Handler[],
 
-
-// export default (authURL: string, appName: string) => {
-
-export const middleware: express.Handler[] = [
-	passport.initialize(),
-	// // initialize & set up passport session (e.g., req.user)
-	passport.session(),
-]
-
-export const endpointsFactory = (authURL: string, appName: string) => ({
-	signup: {
-		method: "post",
-		url: "/register",
-		handler: (async (req, res, next) => {
-			// console.log(`Request body sent to signup post: ${stringify(req.body)}`)
-			passport.authenticate('local-signup', (errAuth, user, info) => {
-				if (errAuth || !user) {
-					const msg = `Signup failed for ${req.body.email_addr}`
-					console.error(errAuth ?? info.message)
-					res.status(statusCodes.BAD_REQUEST).send(msg)
-				}
-				else {
-					// log(`About to req.logIn(user...`)
-					req.logIn(user, async (errLogin) => {
-						if (errLogin) {
-							res.status(statusCodes.UNAUTHORIZED).send(`Login failed for user ${user}: ${errLogin}`)
+		routes: {
+			signup: {
+				method: "post",
+				url: "/register",
+				handler: (async (req, res, next) => {
+					// console.log(`Request body sent to signup post: ${stringify(req.body)}`)
+					passport.authenticate('local-signup', (errAuth, user, info) => {
+						if (errAuth || !user) {
+							const msg = `Signup failed for ${req.body.email_addr}`
+							console.error(errAuth ?? info.message)
+							res.status(statusCodes.BAD_REQUEST).send(msg)
 						}
 						else {
-							// log(`User logged in after signup`)
+							// log(`About to req.logIn(user...`)
+							req.logIn(user, async (errLogin) => {
+								if (errLogin) {
+									res.status(statusCodes.UNAUTHORIZED).send(`Login failed for user ${user}: ${errLogin}`)
+								}
+								else {
+									// log(`User logged in after signup`)
 
-							if (req.session) req.session.cookie.maxAge = 5184000000
-							if (req.headers["accept"] === "application/json") {
-								return (user)
-							}
-							else {
-								res.redirect(String(req.query.return_url) ?? "/")
-							}
+									if (req.session) req.session.cookie.maxAge = 5184000000
+									if (req.headers["accept"] === "application/json") {
+										return (user)
+									}
+									else {
+										res.redirect(String(req.query.return_url) ?? "/")
+									}
+								}
+							})
 						}
-					})
-				}
-			})(req, res, next)
-		}) as express.Handler,
-		proxy: server.routes.register.proxyFactory("", {})
-	},
+					})(req, res, next)
+				}) as express.Handler,
+				proxy: serverRoutes.register.proxyFactory("", {})
+			},
 
-	login: {
-		method: "post",
-		url: "/login",
-		handler: ((req, res, next) => {
-			// console.log(`Request body sent to login post: ${stringify(req.body)}`)
-			passport.authenticate('local-login', (errAuth, user, info) => {
-				if (errAuth || !user) {
-					const msg = `Login failed for '${req.body.email_addr}'`
-					console.error(errAuth ?? info.message)
-					res.status(statusCodes.BAD_REQUEST).send(msg)
-				}
-				else {
-					// eslint-disable-next-line no-shadow
-					req.logIn(user, async (err) => {
-						if (err) {
-							res.status(400).send(`Login failed: ${err}`)
+			login: {
+				method: "post",
+				url: "/login",
+				handler: ((req, res, next) => {
+					// console.log(`Request body sent to login post: ${stringify(req.body)}`)
+					passport.authenticate('local-login', (errAuth, user, info) => {
+						if (errAuth || !user) {
+							const msg = `Login failed for '${req.body.email_addr}'`
+							console.error(errAuth ?? info.message)
+							res.status(statusCodes.BAD_REQUEST).send(msg)
 						}
 						else {
-							if (req.session) {
-								// eslint-disable-next-line fp/no-mutation
-								req.session.cookie.maxAge = req.body.remember === "true"
-									? 5184000000 /* 2 months */
-									: 900000 /* 15 minutes */
-							}
-							res.redirect(req.query && hasValue(req.query.return_url)
-								? String(req.query.return_url)
-								: "/"
-							)
+							// eslint-disable-next-line no-shadow
+							req.logIn(user, async (err) => {
+								if (err) {
+									res.status(400).send(`Login failed: ${err}`)
+								}
+								else {
+									if (req.session) {
+										// eslint-disable-next-line fp/no-mutation
+										req.session.cookie.maxAge = req.body.remember === "true"
+											? 5184000000 /* 2 months */
+											: 900000 /* 15 minutes */
+									}
+									res.redirect(req.query && hasValue(req.query.return_url)
+										? String(req.query.return_url)
+										: "/"
+									)
+								}
+							})
 						}
-					})
+					})(req, res, next)
+				}) as express.Handler,
+				proxy: serverRoutes.authenticate.proxyFactory(authBaseUrl, { app: app })
+			},
+
+			logout: {
+				method: "get",
+				url: "/logout",
+				handler: ((req, res, next) => {
+					// console.log(`Logging out via GET`)
+					req.logOut()
+					res.redirect('/')
+				}) as express.Handler,
+				proxy: undefined as any
+			},
+
+			verify: clientRoute(serverRoutes.verify, authBaseUrl, { app: app }),
+			deactivate: clientRoute(serverRoutes.deactivate, authBaseUrl, { app: app }),
+			logResourceAccess: clientRoute(serverRoutes.logResourceAccess, authBaseUrl, { app: app }),
+			getResourceAccess: clientRoute(serverRoutes.getResourceAccess, authBaseUrl, { app: app })
+		} as const
+	}
+
+	function configurePassport() {
+		// construct & configure passport instance
+		/** Configure and return passport with db authentication middleware */
+
+		passport.serializeUser<string>((user, done) => { done(null, (user as User).id) })
+		passport.deserializeUser<string>(async (id, done) => {
+			try {
+				const userPromise = serverRoutes.findUser.proxyFactory(authBaseUrl, { app })({ id })
+				const userInfo = await userPromise
+				if ("data" in userInfo) {
+					// log(`Deserialized user '${JSON.stringify(user)}'`)
+					return done(null, userInfo.data)
 				}
-			})(req, res, next)
-		}) as express.Handler,
-		proxy: server.routes.authenticate.proxyFactory(authURL, { app: appName })
-	},
+				else {
+					return done(`Error deserializing user ${id} from Db:\n${userInfo.error}`, undefined)
+				}
+			}
+			catch (err) {
+				return done(`Error deserializing user ${id} from Db:\n${err}`, undefined)
+				// return done(err, false)
+			}
+		})
 
-	logout: {
-		method: "get",
-		url: "/logout",
-		handler: ((req, res, next) => {
-			// console.log(`Logging out via GET`)
-			req.logOut()
-			res.redirect('/')
-		}) as express.Handler,
-		proxy: undefined as any
-	},
+		passport.use('local-login', new passportLocal.Strategy(
+			{ usernameField: 'email_addr', passwordField: 'password', passReqToCallback: true },
+			async (req, email, pwd, done) => {
+				if (!email) throw ("email not supplied to local-login strategy")
+				if (!pwd) throw ("password not supplied to local-login strategy")
+				try {
+					const userInfo = await serverRoutes.authenticate.proxyFactory(authBaseUrl, { app })({ email, pwd })
+					if ("data" in userInfo) {
+						return done(null, userInfo.data)
+					}
+					else {
+						return done(userInfo.error, false, { message: 'Incorrect password or email' })
+					}
+				}
+				catch (err) {
+					// return done(err, false)
+					return done(err, false, { message: 'Incorrect password or email' })
+				}
+			})
+		)
+		passport.use('local-signup', new passportLocal.Strategy(
+			{ usernameField: 'email_addr', passwordField: 'password', passReqToCallback: true },
+			async (req, email, pwd, done) => {
+				try {
+					const user = {
+						id: uid(),
+						accessLevel: userAccessLevels.REGULAR,
+						emailAddress: email,
+						displayName: req.body['display_name'],
+						companyName: "", //req.body['company_name'],
+						whenVerified: null,
+						password: pwd,
+						app: app
+					}
+					// log(`New user to be signed up: ${stringify(user)}`)
+					const verificationCode = uid()
+					const verificationURL = `https://${req.get('host')}/verify?email=${email}&code=${verificationCode}`
+					console.log(`New user verification url: ${verificationURL}`)
 
-	verify: clientRoute(server.routes.verify, authURL, { app: appName }),
-	deactivate: clientRoute(server.routes.deactivate, authURL, { app: appName }),
-	logResourceAccess: clientRoute(server.routes.logResourceAccess, authURL, { app: appName }),
-	getResourceAccess: clientRoute(server.routes.getResourceAccess, authURL, { app: appName })
-}) as const
+					const result = await serverRoutes.register.proxyFactory(authBaseUrl, { app })({
+						...user,
+						verificationCode,
+						// url: verificationURL			
+					})
 
-const _endpoints: Obj<RouteFinal> = endpointsFactory("", "")
+					if ("error" in result) {
+						return done(result.error, null)
+					}
+					else {
+						return done(null, result.data)
+					}
+				}
+				catch (err) {
+					// return done(err, false)
+					return done(err, false, { message: `Could not signup user "${email}"` })
+				}
+			})
+		)
+
+		return passport
+	}
+}
+
+// typing test
+const _endpoints: Obj<RouteFinal> = clientRoutesFactory("", "").routes
+
+export function uid() { return "_" + cuid().substring(1) }
+
 
 // endpoints("", "").login.proxy({})
 /*const proxies = () => ({
@@ -138,90 +224,7 @@ const _endpoints: Obj<RouteFinal> = endpointsFactory("", "")
 		.returnType<EntityModel["resourceAccessCounts"]>()
 })*/
 
-export function configurePassport(authBaseUrl: string, app: string) {
-	// construct & configure passport instance
-	/** Configure and return passport with db authentication middleware */
 
-	passport.serializeUser<string>((user, done) => { done(null, (user as User).id) })
-	passport.deserializeUser<string>(async (id, done) => {
-		try {
-			const userPromise = server.routes.findUser.proxyFactory(authBaseUrl, { app })({ id })
-			const userInfo = await userPromise
-			if ("data" in userInfo) {
-				// log(`Deserialized user '${JSON.stringify(user)}'`)
-				return done(null, userInfo.data)
-			}
-			else {
-				return done(`Error deserializing user ${id} from Db:\n${userInfo.error}`, undefined)
-			}
-		}
-		catch (err) {
-			return done(`Error deserializing user ${id} from Db:\n${err}`, undefined)
-			// return done(err, false)
-		}
-	})
-
-	passport.use('local-login', new passportLocal.Strategy(
-		{ usernameField: 'email_addr', passwordField: 'password', passReqToCallback: true },
-		async (req, email, pwd, done) => {
-			if (!email) throw ("email not supplied to local-login strategy")
-			if (!pwd) throw ("password not supplied to local-login strategy")
-			try {
-				const userInfo = await server.routes.authenticate.proxyFactory(authBaseUrl, { app })({ email, pwd })
-				if ("data" in userInfo) {
-					return done(null, userInfo.data)
-				}
-				else {
-					return done(userInfo.error, false, { message: 'Incorrect password or email' })
-				}
-			}
-			catch (err) {
-				// return done(err, false)
-				return done(err, false, { message: 'Incorrect password or email' })
-			}
-		})
-	)
-	passport.use('local-signup', new passportLocal.Strategy(
-		{ usernameField: 'email_addr', passwordField: 'password', passReqToCallback: true },
-		async (req, email, pwd, done) => {
-			try {
-				const user = {
-					id: uid(),
-					accessLevel: userAccessLevels.REGULAR,
-					emailAddress: email,
-					displayName: req.body['display_name'],
-					companyName: "", //req.body['company_name'],
-					whenVerified: null,
-					password: pwd,
-					app: app
-				}
-				// log(`New user to be signed up: ${stringify(user)}`)
-				const verificationCode = uid()
-				const verificationURL = `https://${req.get('host')}/verify?email=${email}&code=${verificationCode}`
-				console.log(`New user verification url: ${verificationURL}`)
-
-				const result = await server.routes.register.proxyFactory(authBaseUrl, { app })({
-					...user,
-					verificationCode,
-					// url: verificationURL			
-				})
-
-				if ("error" in result) {
-					return done(result.error, null)
-				}
-				else {
-					return done(null, result.data)
-				}
-			}
-			catch (err) {
-				// return done(err, false)
-				return done(err, false, { message: `Could not signup user "${email}"` })
-			}
-		})
-	)
-
-	return passport
-}
 // }
 
 
