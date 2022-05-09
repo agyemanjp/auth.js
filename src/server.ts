@@ -19,12 +19,12 @@ import { default as morgan } from "morgan"
 import sslRedirect from "heroku-ssl-redirect"
 
 import { hasValue, Obj, stringify } from "@agyemanjp/standard"
-import { startServer, route } from "@agyemanjp/http/server"
-import { statusCodes } from "@agyemanjp/http/common"
+import { ObjEmpty, bodyFactory, queryFactory, startServer, RouteObject, ResponseDataType, RouteTuple } from '@agyemanjp/http'
+import { Json, JsonObject, Method, statusCodes } from "@agyemanjp/http/common"
 
 import { UserAccessLevel, User, ResourceAccessCount } from "./types"
-import { sanitizeUser } from "./utils"
 import { PostgresRepository } from "./repository"
+import { sanitizeUser } from "./utils"
 import { sendMail } from './lib/mail'
 
 const envKeys = ["DATABASE_URL", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_HOST", "SMTP_PORT", "NODE_ENV"] as const
@@ -33,41 +33,33 @@ const env = process.env as Obj<string, typeof envKeys[number]>
 
 const db = new PostgresRepository({ dbUrl: env.DATABASE_URL })
 
-export const serverRoutes = ({
-	findUser: route
-		.get
-		.url("/:app/users/:id")
-		.queryType<{}>()
+export const routes = ({
+	findUser: queryFactory("get")
+		.url(`/:app/users/:id`)
+		.queryType<ObjEmpty>()
+		.headersType<{}>()
 		.returnType<User>()
-		.handler(async (args) => {
+		.handler(() => async (args) => {
 			const users = await db
 				.getAsync("usersReadonly", {
 					filters: [
-						{
-							fieldName: "userId",
-							operator: "equals",
-							value: args.id
-						},
-						{
-							fieldName: "app",
-							operator: "equals",
-							value: args.app
-						}
+						{ fieldName: "userId", operator: "equals", value: args.id },
+						{ fieldName: "app", operator: "equals", value: args.app }
 					]
 				})
 			if (users.length > 0)
 				return users[0] as User
 			else
 				throw `The requested resource could not be found but may be available in the future.`
-			// statusCodes.NOT_FOUND
+			// statusCodes.NOT_FOUND)
 		}),
 
-	verify: route
-		.post
+	verify: bodyFactory("post")
 		.url("/:app/verify")
 		.bodyType<{ emailAddress: string, verificationCode: string, accessLevel: UserAccessLevel }>()
+		.headersType<ObjEmpty>()
 		.returnType<User>()
-		.handler(async (args) => {
+		.handler(() => async (args) => {
 			const { emailAddress, verificationCode, accessLevel } = args
 			const users = await db.getAsync("users", {
 				filters: [
@@ -92,12 +84,12 @@ export const serverRoutes = ({
 			}
 		}),
 
-	register: route
-		.post
+	register: bodyFactory("post")
 		.url("/:app/register")
 		.bodyType<User & { password?: string | undefined; verificationCode: string }>()
+		.headersType<ObjEmpty>()
 		.returnType<User>()
-		.handler(async (args) => {
+		.handler(() => async (args) => {
 			console.log(`Starting user registration for ${stringify(args)} in auth service`)
 			try {
 				await db.extensions.auth.registerAsync(args)
@@ -117,12 +109,12 @@ export const serverRoutes = ({
 			}
 		}),
 
-	authenticate: route
-		.get
+	authenticate: queryFactory("get")
 		.url("/:app/authenticate")
+		.queryType<ObjEmpty>()
 		.headersType<{ email: string, pwd: string }>()
 		.returnType<User>()
-		.handler(async (args) => {
+		.handler(() => async (args) => {
 			// console.log(`Handling API repo Find with body ${stringify()}`)
 			const user = await db.extensions.auth.authenticateAsync(
 				{ email: String(args["email"]), pwd: String(args["pwd"]) },
@@ -135,28 +127,28 @@ export const serverRoutes = ({
 				throw (statusCodes.FORBIDDEN)
 		}),
 
-	deactivate: route
-		.delete
+	deactivate: queryFactory("delete")
 		.url("/:app/deactivate/:id")
-		.queryType<Obj<never>>()
-		.returnType<null>()
-		.handler(async (args) => {
+		.queryType<ObjEmpty>()
+		.headersType<ObjEmpty>()
+		.returnType<ObjEmpty>()
+		.handler(() => async (args) => {
 			// console.log(`Handling API repo DELETE with entity = ${entity} and id = ${stringify(req.params.id)}`)
 			return db
 				.deleteAsync("users", args.id)
-				.then(() => null)
+				.then(() => ({}))
 				.catch(err => {
 					console.error(err)
 					throw (statusCodes.INTERNAL_SERVER_ERROR)
 				})
 		}),
 
-	logResourceAccess: route
-		.post
+	logResourceAccess: bodyFactory("post")
 		.url("/:app/res_access_counts")
 		.bodyType<{ userId: string, resourceCode: string, resourceType: string }>()
+		.headersType<ObjEmpty>()
 		.returnType<ResourceAccessCount>()
-		.handler(async (args) => {
+		.handler(() => async (args) => {
 			console.log(`Starting access logging for ${stringify(args)}`)
 			try {
 				const ret = await db.extensions.logAccessAsync({
@@ -173,12 +165,12 @@ export const serverRoutes = ({
 			}
 		}),
 
-	getResourceAccess: route
-		.get
+	getResourceAccess: queryFactory("get")
 		.url("/:app/res_access_counts")
 		.queryType<{ user_id: string, resource_code: string }>()
+		.headersType<ObjEmpty>()
 		.returnType<ResourceAccessCount[]>()
-		.handler(async (args) => {
+		.handler(() => async (args) => {
 			// console.log(`Starting access logging for ${stringify(req.body)}`)
 			try {
 				const counts = await db.getAsync("resourceAccessCounts", {
@@ -207,16 +199,19 @@ export const serverRoutes = ({
 			}
 		}),
 
-	default: route
-		.get
+	default: queryFactory("get")
 		.url('/*')
 		.queryType<Obj<never>>()
-		.returnType<null>()
-		.handler((args) => {
+		.headersType<ObjEmpty>()
+		.returnType<never>()
+		.handler(() => (args) => {
 			console.warn(`Handling unknown API route ${args.url}`)
 			throw statusCodes.NOT_FOUND
 		})
 }) as const
+
+// const u = routes.findUser.proxyFactory("", {})({ app: "", id: "" })
+
 
 startServer({
 	name: "auth",
@@ -239,13 +234,14 @@ startServer({
 		sslRedirect(),
 
 		// API
-		serverRoutes.register,
-		serverRoutes.verify,
-		serverRoutes.authenticate,
-		serverRoutes.deactivate,
-		serverRoutes.logResourceAccess,
+		routes.register,
+		routes.verify,
+		routes.authenticate,
+		routes.deactivate,
+		routes.logResourceAccess,
 	],
-	port: 49722
+	port: 49722,
+	context: db
 })
 
 // start server 
@@ -294,6 +290,44 @@ startServer({
 	process.on('SIGINT', (signal) => cleanShutdown(signal))
 })()
 */
+
+/*export const proxies = {
+	findUser: queryProxyFactory("get")
+		.url(`/:app/users/:id`)
+		.queryType<ObjEmpty>()
+		.returnType<User>(),
+
+	verify: queryRouteFactoryFluent("post")
+		.url("/:app/verify")
+		.bodyType<{ emailAddress: string, verificationCode: string, accessLevel: UserAccessLevel }>()
+		.returnType<User>(),
+
+	register: bodyProxyFactory("post")
+		.url("/:app/register")
+		.bodyType<User & { password?: string | undefined; verificationCode: string }>()
+		.returnType<User>(),
+
+	authenticate: queryProxyFactory("get")
+		.url("/:app/authenticate")
+		.headersType<{ email: string, pwd: string }>()
+		.returnType<User>(),
+
+	deactivate: queryProxyFactory("delete")
+		.url("/:app/deactivate/:id")
+		.queryType<Obj<never>>()
+		.returnType<null>(),
+
+	logResourceAccess: bodyProxyFactory("post")
+		.url("/:app/res_access_counts")
+		.bodyType<{ userId: string, resourceCode: string, resourceType: string }>()
+		.returnType<ResourceAccessCount>(),
+
+	getResourceAccess: queryProxyFactory("get")
+		.url("/:app/res_access_counts")
+		.queryType<{ user_id: string, resource_code: string }>()
+		.returnType<ResourceAccessCount[]>()
+}*/
+
 
 /*const prx = routes.verify[3]
 const x = prx("auth.com/:cat/api")({

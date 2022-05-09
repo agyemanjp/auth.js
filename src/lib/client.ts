@@ -1,15 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/ban-types */
+import { default as cuid } from "cuid"
 import * as express from 'express'
 import { default as passport } from 'passport'
 import { default as passportLocal } from "passport-local"
-import { Obj, hasValue, ArgsType } from "@agyemanjp/standard"
-import { Method, statusCodes, proxy, route, request, clientRoute, Route, RouteFinal } from "@agyemanjp/http"
-import { default as cuid } from "cuid"
+import { Obj, hasValue } from "@agyemanjp/standard"
+import { statusCodes, clientRoute, RouteObject, Method, Json, bodyFactory, queryFactory, ObjEmpty, ResponseDataType } from "@agyemanjp/http"
 
-import { User, UserAccessLevel, userAccessLevels } from "./types"
-import { serverRoutes } from "./server"
-import { } from "./utils"
+import { User, userAccessLevels } from "./types"
+import * as server from "./server"
 
 export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 	configurePassport()
@@ -21,9 +20,8 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 
 		routes: {
 			signup: {
-				method: "post",
-				url: "/register",
-				handler: (async (req, res, next) => {
+				...clientRoute(server.routes.register, authBaseUrl, { app: app }),
+				handlerFactory: () => ((req, res, next) => {
 					// console.log(`Request body sent to signup post: ${stringify(req.body)}`)
 					passport.authenticate('local-signup', (errAuth, user, info) => {
 						if (errAuth || !user) {
@@ -52,13 +50,12 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 						}
 					})(req, res, next)
 				}) as express.Handler,
-				proxy: serverRoutes.register.proxyFactory("", {})
+				url: "/signup"
 			},
 
 			login: {
-				method: "post",
-				url: "/login",
-				handler: ((req, res, next) => {
+				...clientRoute(server.routes.authenticate, authBaseUrl, { app: app }),
+				handlerFactory: () => ((req, res, next) => {
 					// console.log(`Request body sent to login post: ${stringify(req.body)}`)
 					passport.authenticate('local-login', (errAuth, user, info) => {
 						if (errAuth || !user) {
@@ -88,24 +85,27 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 						}
 					})(req, res, next)
 				}) as express.Handler,
-				proxy: serverRoutes.authenticate.proxyFactory(authBaseUrl, { app: app })
+				url: "/login"
 			},
 
 			logout: {
-				method: "get",
-				url: "/logout",
-				handler: ((req, res, next) => {
+				...queryFactory("get")
+					.url("/logout")
+					.queryType<ObjEmpty>()
+					.headersType<ObjEmpty>()
+					.responseType(void (0))
+					.proxy(),
+				handlerFactory: () => ((req, res, next) => {
 					// console.log(`Logging out via GET`)
 					req.logOut()
 					res.redirect('/')
-				}) as express.Handler,
-				proxy: undefined as any
+				}) as express.Handler
 			},
 
-			verify: clientRoute(serverRoutes.verify, authBaseUrl, { app: app }),
-			deactivate: clientRoute(serverRoutes.deactivate, authBaseUrl, { app: app }),
-			logResourceAccess: clientRoute(serverRoutes.logResourceAccess, authBaseUrl, { app: app }),
-			getResourceAccess: clientRoute(serverRoutes.getResourceAccess, authBaseUrl, { app: app })
+			verify: clientRoute(server.routes.verify, authBaseUrl, { app: app }),
+			deactivate: clientRoute(server.routes.deactivate, authBaseUrl, { app: app }),
+			logResourceAccess: clientRoute(server.routes.logResourceAccess, authBaseUrl, { app: app }),
+			getResourceAccess: clientRoute(server.routes.getResourceAccess, authBaseUrl, { app: app })
 		} as const
 	}
 
@@ -116,7 +116,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 		passport.serializeUser<string>((user, done) => { done(null, (user as User).id) })
 		passport.deserializeUser<string>(async (id, done) => {
 			try {
-				const userPromise = serverRoutes.findUser.proxyFactory(authBaseUrl, { app })({ id })
+				const userPromise = server.routes.findUser.proxyFactory(authBaseUrl, { app })({ id })
 				const userInfo = await userPromise
 				if ("data" in userInfo) {
 					// log(`Deserialized user '${JSON.stringify(user)}'`)
@@ -138,7 +138,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 				if (!email) throw ("email not supplied to local-login strategy")
 				if (!pwd) throw ("password not supplied to local-login strategy")
 				try {
-					const userInfo = await serverRoutes.authenticate.proxyFactory(authBaseUrl, { app })({ email, pwd })
+					const userInfo = await server.routes.authenticate.proxyFactory(authBaseUrl, { app })({ email, pwd })
 					if ("data" in userInfo) {
 						return done(null, userInfo.data)
 					}
@@ -171,7 +171,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 					const verificationURL = `https://${req.get('host')}/verify?email=${email}&code=${verificationCode}`
 					console.log(`New user verification url: ${verificationURL}`)
 
-					const result = await serverRoutes.register.proxyFactory(authBaseUrl, { app })({
+					const result = await server.routes.register.proxyFactory(authBaseUrl, { app })({
 						...user,
 						verificationCode,
 						// url: verificationURL			
@@ -196,7 +196,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 }
 
 // typing test
-const _endpoints: Obj<RouteFinal> = clientRoutesFactory("", "").routes
+const _endpoints: Obj<RouteObject<Method, any, ResponseDataType>> = clientRoutesFactory("", "").routes
 
 export function uid() { return "_" + cuid().substring(1) }
 
