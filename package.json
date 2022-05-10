@@ -1,6 +1,6 @@
 {
 	"name": "@agyemanjp/auth",
-	"version": "0.0.16",
+	"version": "0.0.17",
 	"description": "Authentication/Authorization library and micro-service",
 	"main": "index.js",
 	"types": "index.d.ts",
