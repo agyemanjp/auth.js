@@ -21,7 +21,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 		routes: {
 			signup: {
 				...clientRoute(server.routes.register, authBaseUrl, { app: app }),
-				handlerFactory: () => ((req, res, next) => {
+				handler: ((req, res, next) => {
 					// console.log(`Request body sent to signup post: ${stringify(req.body)}`)
 					passport.authenticate('local-signup', (errAuth, user, info) => {
 						if (errAuth || !user) {
@@ -38,6 +38,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 								else {
 									// log(`User logged in after signup`)
 
+									// eslint-disable-next-line fp/no-mutation
 									if (req.session) req.session.cookie.maxAge = 5184000000
 									if (req.headers["accept"] === "application/json") {
 										return (user)
@@ -55,7 +56,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 
 			login: {
 				...clientRoute(server.routes.authenticate, authBaseUrl, { app: app }),
-				handlerFactory: () => ((req, res, next) => {
+				handler: ((req, res, next) => {
 					// console.log(`Request body sent to login post: ${stringify(req.body)}`)
 					passport.authenticate('local-login', (errAuth, user, info) => {
 						if (errAuth || !user) {
@@ -95,7 +96,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 					.headersType<ObjEmpty>()
 					.responseType(void (0))
 					.proxy(),
-				handlerFactory: () => ((req, res, next) => {
+				handler: ((req, res, next) => {
 					// console.log(`Logging out via GET`)
 					req.logOut()
 					res.redirect('/')
@@ -196,6 +197,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 }
 
 // typing test
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _endpoints: Obj<RouteObject<Method, any, ResponseDataType>> = clientRoutesFactory("", "").routes
 
 export function uid() { return "_" + cuid().substring(1) }

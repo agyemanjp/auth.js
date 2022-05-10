@@ -19,8 +19,8 @@ import { default as morgan } from "morgan"
 import sslRedirect from "heroku-ssl-redirect"
 
 import { hasValue, Obj, stringify } from "@agyemanjp/standard"
-import { ObjEmpty, bodyFactory, queryFactory, startServer, RouteObject, ResponseDataType, RouteTuple } from '@agyemanjp/http'
-import { Json, JsonObject, Method, statusCodes } from "@agyemanjp/http/common"
+import { ObjEmpty, bodyFactory, queryFactory, startServer } from '@agyemanjp/http'
+import { statusCodes } from "@agyemanjp/http/common"
 
 import { UserAccessLevel, User, ResourceAccessCount } from "./types"
 import { PostgresRepository } from "./repository"
@@ -39,7 +39,7 @@ export const routes = ({
 		.queryType<ObjEmpty>()
 		.headersType<{}>()
 		.returnType<User>()
-		.handler(() => async (args) => {
+		.handler(async (args) => {
 			const users = await db
 				.getAsync("usersReadonly", {
 					filters: [
@@ -59,7 +59,7 @@ export const routes = ({
 		.bodyType<{ emailAddress: string, verificationCode: string, accessLevel: UserAccessLevel }>()
 		.headersType<ObjEmpty>()
 		.returnType<User>()
-		.handler(() => async (args) => {
+		.handler(async (args) => {
 			const { emailAddress, verificationCode, accessLevel } = args
 			const users = await db.getAsync("users", {
 				filters: [
@@ -89,7 +89,7 @@ export const routes = ({
 		.bodyType<User & { password?: string | undefined; verificationCode: string }>()
 		.headersType<ObjEmpty>()
 		.returnType<User>()
-		.handler(() => async (args) => {
+		.handler(async (args) => {
 			console.log(`Starting user registration for ${stringify(args)} in auth service`)
 			try {
 				await db.extensions.auth.registerAsync(args)
@@ -114,7 +114,7 @@ export const routes = ({
 		.queryType<ObjEmpty>()
 		.headersType<{ email: string, pwd: string }>()
 		.returnType<User>()
-		.handler(() => async (args) => {
+		.handler(async (args) => {
 			// console.log(`Handling API repo Find with body ${stringify()}`)
 			const user = await db.extensions.auth.authenticateAsync(
 				{ email: String(args["email"]), pwd: String(args["pwd"]) },
@@ -132,7 +132,7 @@ export const routes = ({
 		.queryType<ObjEmpty>()
 		.headersType<ObjEmpty>()
 		.returnType<ObjEmpty>()
-		.handler(() => async (args) => {
+		.handler(async (args) => {
 			// console.log(`Handling API repo DELETE with entity = ${entity} and id = ${stringify(req.params.id)}`)
 			return db
 				.deleteAsync("users", args.id)
@@ -148,7 +148,7 @@ export const routes = ({
 		.bodyType<{ userId: string, resourceCode: string, resourceType: string }>()
 		.headersType<ObjEmpty>()
 		.returnType<ResourceAccessCount>()
-		.handler(() => async (args) => {
+		.handler(async (args) => {
 			console.log(`Starting access logging for ${stringify(args)}`)
 			try {
 				const ret = await db.extensions.logAccessAsync({
@@ -170,7 +170,7 @@ export const routes = ({
 		.queryType<{ user_id: string, resource_code: string }>()
 		.headersType<ObjEmpty>()
 		.returnType<ResourceAccessCount[]>()
-		.handler(() => async (args) => {
+		.handler(async (args) => {
 			// console.log(`Starting access logging for ${stringify(req.body)}`)
 			try {
 				const counts = await db.getAsync("resourceAccessCounts", {
@@ -204,7 +204,7 @@ export const routes = ({
 		.queryType<Obj<never>>()
 		.headersType<ObjEmpty>()
 		.returnType<never>()
-		.handler(() => (args) => {
+		.handler((args) => {
 			console.warn(`Handling unknown API route ${args.url}`)
 			throw statusCodes.NOT_FOUND
 		})
@@ -240,8 +240,7 @@ startServer({
 		routes.deactivate,
 		routes.logResourceAccess,
 	],
-	port: 49722,
-	context: db
+	port: 49722
 })
 
 // start server 
