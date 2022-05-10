@@ -119,13 +119,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 			try {
 				const userPromise = server.routes.findUser.proxyFactory(authBaseUrl, { app })({ id })
 				const userInfo = await userPromise
-				if ("data" in userInfo) {
-					// log(`Deserialized user '${JSON.stringify(user)}'`)
-					return done(null, userInfo.data)
-				}
-				else {
-					return done(`Error deserializing user ${id} from Db:\n${userInfo.error}`, undefined)
-				}
+				return done(null, userInfo)
 			}
 			catch (err) {
 				return done(`Error deserializing user ${id} from Db:\n${err}`, undefined)
@@ -140,12 +134,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 				if (!pwd) throw ("password not supplied to local-login strategy")
 				try {
 					const userInfo = await server.routes.authenticate.proxyFactory(authBaseUrl, { app })({ email, pwd })
-					if ("data" in userInfo) {
-						return done(null, userInfo.data)
-					}
-					else {
-						return done(userInfo.error, false, { message: 'Incorrect password or email' })
-					}
+					return done(null, userInfo)
 				}
 				catch (err) {
 					// return done(err, false)
@@ -178,12 +167,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 						// url: verificationURL			
 					})
 
-					if ("error" in result) {
-						return done(result.error, null)
-					}
-					else {
-						return done(null, result.data)
-					}
+					return done(null, result)
 				}
 				catch (err) {
 					// return done(err, false)
