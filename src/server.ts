@@ -33,13 +33,59 @@ const env = process.env as Obj<string, typeof envKeys[number]>
 
 const db = new PostgresRepository({ dbUrl: env.DATABASE_URL })
 
-export const routes = ({
+export const proxies = ({
 	findUser: queryFactory("get")
 		.url(`/:app/users/:id`)
 		.queryType<ObjEmpty>()
 		.headersType<{}>()
-		.returnType<User>()
-		.handler(async (args) => {
+		.returnType<User>(),
+
+	verify: bodyFactory("post")
+		.url("/:app/verify")
+		.bodyType<{ emailAddress: string, verificationCode: string, accessLevel: UserAccessLevel }>()
+		.headersType<ObjEmpty>()
+		.returnType<User>(),
+
+	register: bodyFactory("post")
+		.url("/:app/register")
+		.bodyType<User & { password?: string | undefined; verificationCode: string }>()
+		.headersType<ObjEmpty>()
+		.returnType<User>(),
+
+	authenticate: queryFactory("get")
+		.url("/:app/authenticate")
+		.queryType<ObjEmpty>()
+		.headersType<{ email: string, pwd: string }>()
+		.returnType<User>(),
+
+	deactivate: queryFactory("delete")
+		.url("/:app/deactivate/:id")
+		.queryType<ObjEmpty>()
+		.headersType<ObjEmpty>()
+		.returnType<ObjEmpty>(),
+
+	logResourceAccess: bodyFactory("post")
+		.url("/:app/res_access_counts")
+		.bodyType<{ userId: string, resourceCode: string, resourceType: string }>()
+		.headersType<ObjEmpty>()
+		.returnType<ResourceAccessCount>(),
+
+	getResourceAccess: queryFactory("get")
+		.url("/:app/res_access_counts")
+		.queryType<{ user_id: string, resource_code: string }>()
+		.headersType<ObjEmpty>()
+		.returnType<ResourceAccessCount[]>(),
+
+	default: queryFactory("get")
+		.url('/*')
+		.queryType<Obj<never>>()
+		.headersType<ObjEmpty>()
+		.returnType<never>()
+}) as const
+
+export const routes = ({
+	findUser: proxies.findUser
+		.route(async (args) => {
 			const users = await db
 				.getAsync("usersReadonly", {
 					filters: [
@@ -54,12 +100,8 @@ export const routes = ({
 			// statusCodes.NOT_FOUND)
 		}),
 
-	verify: bodyFactory("post")
-		.url("/:app/verify")
-		.bodyType<{ emailAddress: string, verificationCode: string, accessLevel: UserAccessLevel }>()
-		.headersType<ObjEmpty>()
-		.returnType<User>()
-		.handler(async (args) => {
+	verify: proxies.verify
+		.route(async (args) => {
 			const { emailAddress, verificationCode, accessLevel } = args
 			const users = await db.getAsync("users", {
 				filters: [
@@ -84,12 +126,8 @@ export const routes = ({
 			}
 		}),
 
-	register: bodyFactory("post")
-		.url("/:app/register")
-		.bodyType<User & { password?: string | undefined; verificationCode: string }>()
-		.headersType<ObjEmpty>()
-		.returnType<User>()
-		.handler(async (args) => {
+	register: proxies.register
+		.route(async (args) => {
 			console.log(`Starting user registration for ${stringify(args)} in auth service`)
 			try {
 				await db.extensions.auth.registerAsync(args)
@@ -109,12 +147,8 @@ export const routes = ({
 			}
 		}),
 
-	authenticate: queryFactory("get")
-		.url("/:app/authenticate")
-		.queryType<ObjEmpty>()
-		.headersType<{ email: string, pwd: string }>()
-		.returnType<User>()
-		.handler(async (args) => {
+	authenticate: proxies.authenticate
+		.route(async (args) => {
 			// console.log(`Handling API repo Find with body ${stringify()}`)
 			const user = await db.extensions.auth.authenticateAsync(
 				{ email: String(args["email"]), pwd: String(args["pwd"]) },
@@ -127,12 +161,8 @@ export const routes = ({
 				throw (statusCodes.FORBIDDEN)
 		}),
 
-	deactivate: queryFactory("delete")
-		.url("/:app/deactivate/:id")
-		.queryType<ObjEmpty>()
-		.headersType<ObjEmpty>()
-		.returnType<ObjEmpty>()
-		.handler(async (args) => {
+	deactivate: proxies.deactivate
+		.route(async (args) => {
 			// console.log(`Handling API repo DELETE with entity = ${entity} and id = ${stringify(req.params.id)}`)
 			return db
 				.deleteAsync("users", args.id)
@@ -143,12 +173,8 @@ export const routes = ({
 				})
 		}),
 
-	logResourceAccess: bodyFactory("post")
-		.url("/:app/res_access_counts")
-		.bodyType<{ userId: string, resourceCode: string, resourceType: string }>()
-		.headersType<ObjEmpty>()
-		.returnType<ResourceAccessCount>()
-		.handler(async (args) => {
+	logResourceAccess: proxies.logResourceAccess
+		.route(async (args) => {
 			console.log(`Starting access logging for ${stringify(args)}`)
 			try {
 				const ret = await db.extensions.logAccessAsync({
@@ -165,12 +191,8 @@ export const routes = ({
 			}
 		}),
 
-	getResourceAccess: queryFactory("get")
-		.url("/:app/res_access_counts")
-		.queryType<{ user_id: string, resource_code: string }>()
-		.headersType<ObjEmpty>()
-		.returnType<ResourceAccessCount[]>()
-		.handler(async (args) => {
+	getResourceAccess: proxies.getResourceAccess
+		.route(async (args) => {
 			// console.log(`Starting access logging for ${stringify(req.body)}`)
 			try {
 				const counts = await db.getAsync("resourceAccessCounts", {
@@ -199,12 +221,8 @@ export const routes = ({
 			}
 		}),
 
-	default: queryFactory("get")
-		.url('/*')
-		.queryType<Obj<never>>()
-		.headersType<ObjEmpty>()
-		.returnType<never>()
-		.handler((args) => {
+	default: proxies.default
+		.route((args) => {
 			console.warn(`Handling unknown API route ${args.url}`)
 			throw statusCodes.NOT_FOUND
 		})

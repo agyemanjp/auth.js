@@ -5,7 +5,7 @@ import * as express from 'express'
 import { default as passport } from 'passport'
 import { default as passportLocal } from "passport-local"
 import { Obj, hasValue } from "@agyemanjp/standard"
-import { statusCodes, clientRoute, RouteObject, Method, Json, bodyFactory, queryFactory, ObjEmpty, ResponseDataType } from "@agyemanjp/http"
+import { statusCodes, clientProxy, RouteObject, Method, Json, bodyFactory, queryFactory, ObjEmpty, ResponseDataType } from "@agyemanjp/http"
 
 import { User, userAccessLevels } from "./types"
 import * as server from "./server"
@@ -20,7 +20,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 
 		routes: {
 			signup: {
-				...clientRoute(server.routes.register, authBaseUrl, { app: app }),
+				...clientProxy(server.proxies.register, authBaseUrl, { app: app }),
 				handler: ((req, res, next) => {
 					// console.log(`Request body sent to signup post: ${stringify(req.body)}`)
 					passport.authenticate('local-signup', (errAuth, user, info) => {
@@ -55,7 +55,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 			},
 
 			login: {
-				...clientRoute(server.routes.authenticate, authBaseUrl, { app: app }),
+				...clientProxy(server.proxies.authenticate, authBaseUrl, { app: app }),
 				handler: ((req, res, next) => {
 					// console.log(`Request body sent to login post: ${stringify(req.body)}`)
 					passport.authenticate('local-login', (errAuth, user, info) => {
@@ -94,8 +94,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 					.url("/logout")
 					.queryType<ObjEmpty>()
 					.headersType<ObjEmpty>()
-					.responseType(void (0))
-					.proxy(),
+					.responseType(void (0)),
 				handler: ((req, res, next) => {
 					// console.log(`Logging out via GET`)
 					req.logOut()
@@ -103,10 +102,10 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 				}) as express.Handler
 			},
 
-			verify: clientRoute(server.routes.verify, authBaseUrl, { app: app }),
-			deactivate: clientRoute(server.routes.deactivate, authBaseUrl, { app: app }),
-			logResourceAccess: clientRoute(server.routes.logResourceAccess, authBaseUrl, { app: app }),
-			getResourceAccess: clientRoute(server.routes.getResourceAccess, authBaseUrl, { app: app })
+			verify: clientProxy(server.proxies.verify, authBaseUrl, { app: app }),
+			deactivate: clientProxy(server.proxies.deactivate, authBaseUrl, { app: app }),
+			logResourceAccess: clientProxy(server.proxies.logResourceAccess, authBaseUrl, { app: app }),
+			getResourceAccess: clientProxy(server.proxies.getResourceAccess, authBaseUrl, { app: app })
 		} as const
 	}
 
@@ -117,7 +116,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 		passport.serializeUser<string>((user, done) => { done(null, (user as User).id) })
 		passport.deserializeUser<string>(async (id, done) => {
 			try {
-				const userPromise = server.routes.findUser.proxyFactory(authBaseUrl, { app })({ id })
+				const userPromise = server.proxies.findUser.proxyFactory(authBaseUrl, { app })({ id })
 				const userInfo = await userPromise
 				return done(null, userInfo)
 			}
@@ -133,7 +132,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 				if (!email) throw ("email not supplied to local-login strategy")
 				if (!pwd) throw ("password not supplied to local-login strategy")
 				try {
-					const userInfo = await server.routes.authenticate.proxyFactory(authBaseUrl, { app })({ email, pwd })
+					const userInfo = await server.proxies.authenticate.proxyFactory(authBaseUrl, { app })({ email, pwd })
 					return done(null, userInfo)
 				}
 				catch (err) {
@@ -161,7 +160,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 					const verificationURL = `https://${req.get('host')}/verify?email=${email}&code=${verificationCode}`
 					console.log(`New user verification url: ${verificationURL}`)
 
-					const result = await server.routes.register.proxyFactory(authBaseUrl, { app })({
+					const result = await server.proxies.register.proxyFactory(authBaseUrl, { app })({
 						...user,
 						verificationCode,
 						// url: verificationURL			
@@ -182,7 +181,7 @@ export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 
 // typing test
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _endpoints: Obj<RouteObject<Method, any, ResponseDataType>> = clientRoutesFactory("", "").routes
+const _endpoints: Obj<RouteObject<Method>> = clientRoutesFactory("", "").routes
 
 export function uid() { return "_" + cuid().substring(1) }
 
