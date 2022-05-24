@@ -23,14 +23,7 @@
 		"strictNullChecks": true,
 		"skipLibCheck": true,
 		"incremental": true,
-		"declaration": true,
-		// "sourceMap": true,
-		"rootDirs": [
-			"./src",
-			"./src/lib",
-			"./src/db",
-			"./src/test"
-		]
+		"declaration": true
 	},
 	"include": [
 		"./src"

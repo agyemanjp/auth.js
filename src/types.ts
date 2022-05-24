@@ -1,4 +1,4 @@
-import { EntityModel, } from "./schema"
+import { EntityModel, } from "./db/schema"
 
 export const userAccessLevels = {
 	NONE: 0,

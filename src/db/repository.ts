@@ -8,7 +8,8 @@ import * as bcrypt from "bcryptjs"
 import { default as pgPromise } from "pg-promise"
 
 import {
-	Obj, Tuple, Filter, FilterSimple, FilterGroup, FilterGroupSimple,
+	Obj, Tuple,
+	Filter, FilterSimple, FilterGroupSimple,
 	toSnakeCase, toCamelCase,
 	objectFromTuples, entries,
 	hasValue, stringify
@@ -16,7 +17,7 @@ import {
 import { generateRepoGroupClass } from "@agyemanjp/storage"
 import { schema, EntityModel } from "./schema"
 // import { , uid } from "./utils"
-import { User } from "./types"
+import { User } from "../types"
 
 export const PostgresRepository = generateRepoGroupClass(
 	schema,

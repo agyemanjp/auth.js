@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { Transporter, createTransport } from "nodemailer"
 
 export function sendMail(msg: MailMessage) {

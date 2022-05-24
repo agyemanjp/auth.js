@@ -23,8 +23,8 @@ import { ObjEmpty, bodyFactory, queryFactory, startServer } from '@agyemanjp/htt
 import { statusCodes } from "@agyemanjp/http/common"
 
 import { UserAccessLevel, User, ResourceAccessCount } from "./types"
-import { PostgresRepository } from "./repository"
-import { sanitizeUser } from "./utils"
+import { PostgresRepository } from "./db/repository"
+import { sanitizeUser } from "./lib/utils"
 import { sendMail } from './lib/mail'
 
 const envKeys = ["DATABASE_URL", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_HOST", "SMTP_PORT", "NODE_ENV"] as const

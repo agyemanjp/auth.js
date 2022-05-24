@@ -7,8 +7,8 @@ import { default as passportLocal } from "passport-local"
 import { Obj, hasValue } from "@agyemanjp/standard"
 import { statusCodes, clientProxy, RouteObject, Method, Json, bodyFactory, queryFactory, ObjEmpty, ResponseDataType } from "@agyemanjp/http"
 
-import { User, userAccessLevels } from "./types"
-import * as server from "./server"
+import { User, userAccessLevels } from "../types"
+import * as server from "../server"
 
 export const clientRoutesFactory = (authBaseUrl: string, app: string) => {
 	configurePassport()

@@ -3,7 +3,7 @@
 /* eslint-disable camelcase */
 /* eslint-disable brace-style */
 
-import { User } from "./types"
+import { User } from "../types"
 
 
 export const sanitizeUser = <U extends User>(user: U) => ({
